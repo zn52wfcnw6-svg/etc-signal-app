@@ -31,8 +31,8 @@ class MarketValidator {
       if (s.price > 0) priceMap[s.exchange] = s.price;
     }
 
-    if (priceMap.length < 3) {
-      return ValidationResult(isFailed: true, reason: '有效数据源不足3家');
+    if (priceMap.length < 1) {
+      return ValidationResult(isFailed: true, reason: '无有效行情数据源');
     }
 
     final prices = priceMap.values.toList();
