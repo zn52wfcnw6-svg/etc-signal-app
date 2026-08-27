@@ -79,6 +79,52 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
 
             const SizedBox(height: 24),
+            _sectionTitle('交易偏好（可修改）'),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('风险偏好', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        _riskButton('保守', app.riskPreference == 'conservative', () => app.setRiskPreference('conservative')),
+                        _riskButton('稳健', app.riskPreference == 'moderate', () => app.setRiskPreference('moderate')),
+                        _riskButton('激进', app.riskPreference == 'aggressive', () => app.setRiskPreference('aggressive')),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('轮询间隔（秒）', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                    Slider(
+                      value: app.pollInterval.toDouble(),
+                      min: 5,
+                      max: 30,
+                      divisions: 25,
+                      label: '${app.pollInterval}秒',
+                      onChanged: (v) => app.setPollInterval(v.toInt()),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      title: const Text('信号声音提醒', style: TextStyle(fontSize: 14)),
+                      value: app.soundEnabled,
+                      onChanged: (v) => app.setSoundEnabled(v),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    SwitchListTile(
+                      title: const Text('信号震动提醒', style: TextStyle(fontSize: 14)),
+                      value: app.vibrationEnabled,
+                      onChanged: (v) => app.setVibrationEnabled(v),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
             _sectionTitle('信号参数'),
             Card(
               child: Column(
@@ -140,6 +186,21 @@ class _SettingsPageState extends State<SettingsPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 4),
       child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _riskButton(String label, bool isActive, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.blue.withOpacity(0.3) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isActive ? Colors.blue : Colors.grey, width: 1),
+        ),
+        child: Text(label, style: TextStyle(color: isActive ? Colors.blue : Colors.grey, fontSize: 13)),
+      ),
     );
   }
 

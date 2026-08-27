@@ -26,6 +26,46 @@ class AppState extends ChangeNotifier {
 
   bool _isInitialized = false;
   bool _isRunning = false;
+
+  // 用户可配置参数
+  String _riskPreference = 'moderate'; // conservative/moderate/aggressive
+  int _pollInterval = AppConstants.pollIntervalSeconds;
+  bool _soundEnabled = true;
+  bool _vibrationEnabled = true;
+
+  String get riskPreference => _riskPreference;
+  int get pollInterval => _pollInterval;
+  bool get soundEnabled => _soundEnabled;
+  bool get vibrationEnabled => _vibrationEnabled;
+
+  void setRiskPreference(String pref) {
+    _riskPreference = pref;
+    // 根据风险偏好调整参数
+    switch (pref) {
+      case 'conservative':
+        // 保守：更低风险，更高盈亏比要求
+        break;
+      case 'aggressive':
+        // 激进：更高风险，更低盈亏比要求
+        break;
+    }
+    notifyListeners();
+  }
+
+  void setPollInterval(int seconds) {
+    _pollInterval = seconds;
+    notifyListeners();
+  }
+
+  void setSoundEnabled(bool enabled) {
+    _soundEnabled = enabled;
+    notifyListeners();
+  }
+
+  void setVibrationEnabled(bool enabled) {
+    _vibrationEnabled = enabled;
+    notifyListeners();
+  }
   String _statusMessage = '初始化中...';
   TradingSignal? _currentSignal;
   RiskState? _riskState;
