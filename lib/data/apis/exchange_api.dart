@@ -1,7 +1,16 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../models/market_data.dart';
 import '../../utils/constants.dart';
+
+/// CORS代理：Web版通过代理访问交易所API
+String _proxy(String url) {
+  if (kIsWeb) {
+    return 'https://corsproxy.io/?url=${Uri.encodeComponent(url)}';
+  }
+  return url;
+}
 
 /// 交易所API基类
 abstract class ExchangeApi {
@@ -26,7 +35,7 @@ class BinanceApi implements ExchangeApi {
   Future<MarketSnapshot?> fetchTicker(String symbol) async {
     try {
       final resp = await http.get(
-        Uri.parse('$baseUrl/fapi/v1/ticker/price?symbol=$symbol'),
+        Uri.parse(_proxy('$baseUrl/fapi/v1/ticker/price?symbol=$symbol')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -45,7 +54,7 @@ class BinanceApi implements ExchangeApi {
   Future<List<Kline>> fetchKlines(String symbol, String interval, int limit) async {
     try {
       final resp = await http.get(
-        Uri.parse('$baseUrl/fapi/v1/klines?symbol=$symbol&interval=$interval&limit=$limit'),
+        Uri.parse(_proxy('$baseUrl/fapi/v1/klines?symbol=$symbol&interval=$interval&limit=$limit')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return [];
       final List<dynamic> data = json.decode(resp.body);
@@ -59,7 +68,7 @@ class BinanceApi implements ExchangeApi {
   Future<double?> fetchFundingRate(String symbol) async {
     try {
       final resp = await http.get(
-        Uri.parse('$baseUrl/fapi/v1/premiumIndex?symbol=$symbol'),
+        Uri.parse(_proxy('$baseUrl/fapi/v1/premiumIndex?symbol=$symbol')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -73,7 +82,7 @@ class BinanceApi implements ExchangeApi {
   Future<double?> fetchOpenInterest(String symbol) async {
     try {
       final resp = await http.get(
-        Uri.parse('$baseUrl/fapi/v1/openInterest?symbol=$symbol'),
+        Uri.parse(_proxy('$baseUrl/fapi/v1/openInterest?symbol=$symbol')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -87,7 +96,7 @@ class BinanceApi implements ExchangeApi {
   Future<List<Trade>> fetchRecentTrades(String symbol, int limit) async {
     try {
       final resp = await http.get(
-        Uri.parse('$baseUrl/fapi/v1/trades?symbol=$symbol&limit=$limit'),
+        Uri.parse(_proxy('$baseUrl/fapi/v1/trades?symbol=$symbol&limit=$limit')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return [];
       final List<dynamic> data = json.decode(resp.body);
@@ -118,7 +127,7 @@ class OkxApi implements ExchangeApi {
     try {
       final instId = _toOkxSymbol(symbol);
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v5/market/ticker?instId=$instId'),
+        Uri.parse(_proxy('$baseUrl/api/v5/market/ticker?instId=$instId')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -141,7 +150,7 @@ class OkxApi implements ExchangeApi {
       final instId = _toOkxSymbol(symbol);
       final bar = _toOkxInterval(interval);
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v5/market/candles?instId=$instId&bar=$bar&limit=$limit'),
+        Uri.parse(_proxy('$baseUrl/api/v5/market/candles?instId=$instId&bar=$bar&limit=$limit')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return [];
       final data = json.decode(resp.body);
@@ -192,7 +201,7 @@ class OkxApi implements ExchangeApi {
     try {
       final instId = _toOkxSymbol(symbol);
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v5/public/funding-rate?instId=$instId'),
+        Uri.parse(_proxy('$baseUrl/api/v5/public/funding-rate?instId=$instId')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -208,7 +217,7 @@ class OkxApi implements ExchangeApi {
     try {
       final instId = _toOkxSymbol(symbol);
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v5/public/open-interest?instId=$instId'),
+        Uri.parse(_proxy('$baseUrl/api/v5/public/open-interest?instId=$instId')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -224,7 +233,7 @@ class OkxApi implements ExchangeApi {
     try {
       final instId = _toOkxSymbol(symbol);
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v5/market/trades?instId=$instId&limit=$limit'),
+        Uri.parse(_proxy('$baseUrl/api/v5/market/trades?instId=$instId&limit=$limit')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return [];
       final data = json.decode(resp.body);
@@ -254,7 +263,7 @@ class BybitApi implements ExchangeApi {
   Future<MarketSnapshot?> fetchTicker(String symbol) async {
     try {
       final resp = await http.get(
-        Uri.parse('$baseUrl/v5/market/tickers?category=linear&symbol=$symbol'),
+        Uri.parse(_proxy('$baseUrl/v5/market/tickers?category=linear&symbol=$symbol')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -275,7 +284,7 @@ class BybitApi implements ExchangeApi {
   Future<List<Kline>> fetchKlines(String symbol, String interval, int limit) async {
     try {
       final resp = await http.get(
-        Uri.parse('$baseUrl/v5/market/kline?category=linear&symbol=$symbol&interval=$interval&limit=$limit'),
+        Uri.parse(_proxy('$baseUrl/v5/market/kline?category=linear&symbol=$symbol&interval=$interval&limit=$limit')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return [];
       final data = json.decode(resp.body);
@@ -300,7 +309,7 @@ class BybitApi implements ExchangeApi {
   Future<double?> fetchFundingRate(String symbol) async {
     try {
       final resp = await http.get(
-        Uri.parse('$baseUrl/v5/market/funding/history?category=linear&symbol=$symbol&limit=1'),
+        Uri.parse(_proxy('$baseUrl/v5/market/funding/history?category=linear&symbol=$symbol&limit=1')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -315,7 +324,7 @@ class BybitApi implements ExchangeApi {
   Future<double?> fetchOpenInterest(String symbol) async {
     try {
       final resp = await http.get(
-        Uri.parse('$baseUrl/v5/market/open-interest?category=linear&symbol=$symbol&intervalTime=5min'),
+        Uri.parse(_proxy('$baseUrl/v5/market/open-interest?category=linear&symbol=$symbol&intervalTime=5min')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -345,7 +354,7 @@ class BitgetApi implements ExchangeApi {
     try {
       final instId = '${symbol.substring(0, 3)}${symbol.substring(3)}_UMCBL';
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v2/mix/market/ticker?symbol=$instId&productType=umcbl'),
+        Uri.parse(_proxy('$baseUrl/api/v2/mix/market/ticker?symbol=$instId&productType=umcbl')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -367,7 +376,7 @@ class BitgetApi implements ExchangeApi {
       final instId = '${symbol.substring(0, 3)}${symbol.substring(3)}_UMCBL';
       final granularity = _toBitgetInterval(interval);
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v2/mix/market/candles?symbol=$instId&granularity=$granularity&limit=$limit&productType=umcbl'),
+        Uri.parse(_proxy('$baseUrl/api/v2/mix/market/candles?symbol=$instId&granularity=$granularity&limit=$limit&productType=umcbl')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return [];
       final data = json.decode(resp.body);
@@ -404,7 +413,7 @@ class BitgetApi implements ExchangeApi {
     try {
       final instId = '${symbol.substring(0, 3)}${symbol.substring(3)}_UMCBL';
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v2/mix/market/current-fund-rate?symbol=$instId&productType=umcbl'),
+        Uri.parse(_proxy('$baseUrl/api/v2/mix/market/current-fund-rate?symbol=$instId&productType=umcbl')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -420,7 +429,7 @@ class BitgetApi implements ExchangeApi {
     try {
       final instId = '${symbol.substring(0, 3)}${symbol.substring(3)}_UMCBL';
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v2/mix/market/open-interest?symbol=$instId&productType=umcbl'),
+        Uri.parse(_proxy('$baseUrl/api/v2/mix/market/open-interest?symbol=$instId&productType=umcbl')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -449,7 +458,7 @@ class GateApi implements ExchangeApi {
     try {
       final contract = _toGateSymbol(symbol);
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v4/futures/usdt/tickers?contract=$contract'),
+        Uri.parse(_proxy('$baseUrl/api/v4/futures/usdt/tickers?contract=$contract')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final List<dynamic> data = json.decode(resp.body);
@@ -470,7 +479,7 @@ class GateApi implements ExchangeApi {
     try {
       final contract = _toGateSymbol(symbol);
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v4/futures/usdt/candlesticks?contract=$contract&interval=$interval&limit=$limit'),
+        Uri.parse(_proxy('$baseUrl/api/v4/futures/usdt/candlesticks?contract=$contract&interval=$interval&limit=$limit')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return [];
       final List<dynamic> data = json.decode(resp.body);
@@ -493,7 +502,7 @@ class GateApi implements ExchangeApi {
     try {
       final contract = _toGateSymbol(symbol);
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v4/futures/usdt/contracts/$contract'),
+        Uri.parse(_proxy('$baseUrl/api/v4/futures/usdt/contracts/$contract')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
@@ -508,7 +517,7 @@ class GateApi implements ExchangeApi {
     try {
       final contract = _toGateSymbol(symbol);
       final resp = await http.get(
-        Uri.parse('$baseUrl/api/v4/futures/usdt/tickers?contract=$contract'),
+        Uri.parse(_proxy('$baseUrl/api/v4/futures/usdt/tickers?contract=$contract')),
       ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
       if (resp.statusCode != 200) return null;
       final List<dynamic> data = json.decode(resp.body);
