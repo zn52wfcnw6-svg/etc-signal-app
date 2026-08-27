@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/app_state.dart';
 import '../utils/constants.dart';
+import '../services/telegram_push_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -12,6 +13,11 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final TextEditingController _balanceController = TextEditingController();
+  final TextEditingController _botTokenController = TextEditingController();
+  final TextEditingController _chatIdController = TextEditingController();
+  final TelegramPushService _telegramService = TelegramPushService();
+  bool _telegramEnabled = false;
+  bool _testingTelegram = false;
 
   @override
   void initState() {
@@ -19,6 +25,16 @@ class _SettingsPageState extends State<SettingsPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final app = context.read<AppState>();
       _balanceController.text = app.accountBalance.toStringAsFixed(2);
+      _loadTelegramConfig();
+    });
+  }
+
+  Future<void> _loadTelegramConfig() async {
+    await _telegramService.loadConfig();
+    setState(() {
+      _botTokenController.text = _telegramService.botToken ?? '';
+      _chatIdController.text = _telegramService.chatId ?? '';
+      _telegramEnabled = _telegramService.enabled;
     });
   }
 
@@ -136,6 +152,83 @@ class _SettingsPageState extends State<SettingsPage> {
                   _paramRow('BTC 5m波动阈值', '${(AppConstants.btc5mVolatilityThreshold * 100).toStringAsFixed(1)}%'),
                   _paramRow('BTC 15m波动阈值', '${(AppConstants.btc15mVolatilityThreshold * 100).toStringAsFixed(0)}%'),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+            _sectionTitle('Telegram推送'),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SwitchListTile(
+                      title: const Text('启用Telegram推送', style: TextStyle(fontSize: 14)),
+                      value: _telegramEnabled,
+                      onChanged: (v) => setState(() => _telegramEnabled = v),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('Bot Token', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: _botTokenController,
+                      decoration: const InputDecoration(
+                        hintText: '123456:ABC-DEF...',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('Chat ID', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: _chatIdController,
+                      decoration: const InputDecoration(
+                        hintText: '123456789',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            child: const Text('保存配置'),
+                            onPressed: () async {
+                              await _telegramService.saveConfig(
+                                botToken: _botTokenController.text.trim(),
+                                chatId: _chatIdController.text.trim(),
+                                enabled: _telegramEnabled,
+                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Telegram配置已保存')));
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            child: _testingTelegram ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('测试推送'),
+                            onPressed: _testingTelegram ? null : () async {
+                              setState(() => _testingTelegram = true);
+                              final success = await _telegramService.testPush();
+                              setState(() => _testingTelegram = false);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? '测试推送成功' : '测试推送失败，请检查配置')));
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
 
