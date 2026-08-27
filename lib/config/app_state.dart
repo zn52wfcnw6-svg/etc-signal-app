@@ -26,6 +26,7 @@ class AppState extends ChangeNotifier {
   final DatabaseHelper database = DatabaseHelper();
 
   bool _isInitialized = false;
+  String? _initError;
   bool _isRunning = false;
 
   // 用户可配置参数
@@ -123,44 +124,55 @@ class AppState extends ChangeNotifier {
 
   Future<void> init() async {
     if (_isInitialized) return;
-    await database.init();
-    signalEngine = SignalEngine(marketData);
-    riskManager = RiskManager(marketData);
-    selfHealing = SelfHealingMonitor(database);
-    await marketData.init();
-    _registerHealthChecks();
+    try {
+      await database.init();
+    } catch (e) {
+      _statusMessage = '数据库初始化失败: $e，使用内存模式';
+      notifyListeners();
+    }
+    try {
+      signalEngine = SignalEngine(marketData);
+      riskManager = RiskManager(marketData);
+      selfHealing = SelfHealingMonitor(database);
+      await marketData.init();
+      _registerHealthChecks();
 
-    _ethSub = marketData.ethDataStream.listen((data) {
-      _ethPrice = data.price;
-      notifyListeners();
-    });
-    _btcSub = marketData.btcDataStream.listen((data) {
-      _btcPrice = data.price;
-    });
-    _signalSub = signalEngine.signalStream.listen((signal) {
-      _currentSignal = signal;
-      database.insertSignal(signal);
-      notifyListeners();
-    });
-    _analysisSub = signalEngine.analysisStream.listen((analysis) {
-      _analysis = analysis;
-      _statusMessage = analysis.statusMessage;
-      notifyListeners();
-    });
-    _riskSub = riskManager.riskStream.listen((state) {
-      _riskState = state;
-      notifyListeners();
-    });
-    _errorSub = marketData.errorStream.listen((error) {
-      _statusMessage = error;
-      notifyListeners();
-    });
+      _ethSub = marketData.ethDataStream.listen((data) {
+        _ethPrice = data.price;
+        notifyListeners();
+      });
+      _btcSub = marketData.btcDataStream.listen((data) {
+        _btcPrice = data.price;
+      });
+      _signalSub = signalEngine.signalStream.listen((signal) {
+        _currentSignal = signal;
+        try { database.insertSignal(signal); } catch (_) {}
+        notifyListeners();
+      });
+      _analysisSub = signalEngine.analysisStream.listen((analysis) {
+        _analysis = analysis;
+        _statusMessage = analysis.statusMessage;
+        notifyListeners();
+      });
+      _riskSub = riskManager.riskStream.listen((state) {
+        _riskState = state;
+        notifyListeners();
+      });
+      _errorSub = marketData.errorStream.listen((error) {
+        _statusMessage = error;
+        notifyListeners();
+      });
 
-    _isInitialized = true;
-    _statusMessage = '初始化完成，自动启动';
-    notifyListeners();
-    // 自动启动
-    start();
+      _isInitialized = true;
+      _statusMessage = '初始化完成，自动启动';
+      notifyListeners();
+      start();
+    } catch (e, stack) {
+      _statusMessage = '初始化异常: $e';
+      _initError = '$e\n$stack';
+      _isInitialized = true; // 标记为已初始化，避免重复初始化
+      notifyListeners();
+    }
   }
 
   void _registerHealthChecks() {
