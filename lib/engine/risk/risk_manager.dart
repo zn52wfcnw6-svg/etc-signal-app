@@ -4,64 +4,60 @@ import '../../utils/constants.dart';
 import '../../data/market_data_manager.dart';
 import '../long_cycle/structure_analyzer.dart';
 import '../long_cycle/volatility_oi.dart';
+import '../adaptive/adaptive_params.dart';
 
-/// 全局冻结状态
-class FreezeState {
-  final bool isFrozen;
-  final List<FreezeReason> reasons;
-  final int frozenSince;
-  final int consecutiveUnfreezeChecks;
+/// 风险等级
+enum RiskLevel {
+  L0, // 正常 - 绿灯
+  L1, // 谨慎 - 黄灯
+  L2, // 高危 - 橙灯
+  L3, // 极端 - 红灯（完全屏蔽）
+}
 
-  FreezeState({
-    required this.isFrozen,
+/// 风险状态
+class RiskState {
+  final RiskLevel level;
+  final List<String> reasons;
+  final double positionMultiplier; // 仓位倍数
+  final double minRiskReward; // 最低盈亏比要求
+  final bool allowsSignals; // 是否允许输出信号
+  final bool allowsTrendFollow; // 是否允许顺势
+  final bool allowsCounterTrend; // 是否允许逆势（抓顶抓底）
+
+  RiskState({
+    required this.level,
     this.reasons = const [],
-    this.frozenSince = 0,
-    this.consecutiveUnfreezeChecks = 0,
+    this.positionMultiplier = 1.0,
+    this.minRiskReward = 4.0,
+    this.allowsSignals = true,
+    this.allowsTrendFollow = true,
+    this.allowsCounterTrend = true,
   });
 
-  String get reasonText {
-    if (reasons.isEmpty) return '无';
-    return reasons.map((r) => _reasonText(r)).join(', ');
-  }
-
-  String _reasonText(FreezeReason r) {
-    switch (r) {
-      case FreezeReason.btcVolatility: return 'BTC剧烈波动';
-      case FreezeReason.btcStructureBreak: return 'BTC结构破位';
-      case FreezeReason.dataValidationFailed: return '行情校验失败';
-      case FreezeReason.accountRiskExceeded: return '账户风险超限';
-      case FreezeReason.liquidationSqueeze: return '清算挤压';
-      case FreezeReason.none: return '无';
+  String get levelText {
+    switch (level) {
+      case RiskLevel.L0: return '正常';
+      case RiskLevel.L1: return '谨慎';
+      case RiskLevel.L2: return '高危';
+      case RiskLevel.L3: return '极端';
     }
   }
 
-  FreezeState copyWith({
-    bool? isFrozen,
-    List<FreezeReason>? reasons,
-    int? frozenSince,
-    int? consecutiveUnfreezeChecks,
-  }) {
-    return FreezeState(
-      isFrozen: isFrozen ?? this.isFrozen,
-      reasons: reasons ?? this.reasons,
-      frozenSince: frozenSince ?? this.frozenSince,
-      consecutiveUnfreezeChecks: consecutiveUnfreezeChecks ?? this.consecutiveUnfreezeChecks,
-    );
-  }
+  String get reasonText => reasons.isEmpty ? '无' : reasons.join(', ');
 }
 
-/// 风控管理器：全局冻结状态机 + 账户风险计算
+/// 风控管理器：风险分级 + 账户风险计算
 class RiskManager {
   final MarketDataManager _dataManager;
   final List<Position> _positions = [];
-  double _accountBalance = 10000; // 默认账户净值，用户可配置
-
-  FreezeState _freezeState = FreezeState(isFrozen: false);
+  double _accountBalance = 10000;
+  RiskState _riskState = RiskState(level: RiskLevel.L0);
   final List<double> _oiHistory = [];
+  AdaptiveParams? _adaptiveParams;
 
-  final StreamController<FreezeState> _freezeController = StreamController<FreezeState>.broadcast();
-  Stream<FreezeState> get freezeStream => _freezeController.stream;
-  FreezeState get freezeState => _freezeState;
+  final StreamController<RiskState> _riskController = StreamController<RiskState>.broadcast();
+  Stream<RiskState> get riskStream => _riskController.stream;
+  RiskState get riskState => _riskState;
   List<Position> get positions => List.unmodifiable(_positions);
   double get accountBalance => _accountBalance;
 
@@ -71,27 +67,18 @@ class RiskManager {
     _accountBalance = balance;
   }
 
-  /// 添加持仓
+  void setAdaptiveParams(AdaptiveParams params) {
+    _adaptiveParams = params;
+  }
+
   void addPosition(Position pos) {
     _positions.add(pos);
-    _checkAccountRisk();
   }
 
-  /// 关闭持仓
   void closePosition(String id, double closePrice, double pnl) {
-    final idx = _positions.indexWhere((p) => p.id == id);
-    if (idx >= 0) {
-      _positions[idx] = _positions[idx].copyWith(
-        isClosed: true,
-        closedAt: DateTime.now().millisecondsSinceEpoch,
-        closePrice: closePrice,
-        realizedPnl: pnl,
-      );
-      _positions.removeAt(idx);
-    }
+    _positions.removeWhere((p) => p.id == id);
   }
 
-  /// 更新止损（TP1后移至成本）
   void updateStopLoss(String id, double newSl) {
     final idx = _positions.indexWhere((p) => p.id == id);
     if (idx >= 0) {
@@ -99,7 +86,6 @@ class RiskManager {
     }
   }
 
-  /// 计算账户总风险占用
   double get totalRisk {
     if (_accountBalance <= 0) return 0;
     double totalRiskAmount = 0;
@@ -109,69 +95,65 @@ class RiskManager {
     return totalRiskAmount / _accountBalance;
   }
 
-  /// 单笔建议仓位
+  /// 单笔建议仓位（考虑风险等级倍数）
   double suggestedPositionSize(double entry, double stopLoss) {
-    final maxRiskAmount = _accountBalance * AppConstants.singleTradeRiskLimit;
+    final baseRisk = _accountBalance * AppConstants.singleTradeRiskLimit;
+    final adjustedRisk = baseRisk * _riskState.positionMultiplier;
     final riskPerUnit = (entry - stopLoss).abs();
-    return riskPerUnit > 0 ? maxRiskAmount / riskPerUnit : 0;
+    return riskPerUnit > 0 ? adjustedRisk / riskPerUnit : 0;
   }
 
-  /// 检查账户风险
-  bool _checkAccountRisk() {
-    return totalRisk >= AppConstants.accountRiskLimit;
-  }
+  /// 执行风险检查（每次轮询调用）
+  Future<RiskState> checkRiskConditions() async {
+    final reasons = <String>[];
+    RiskLevel level = RiskLevel.L0;
 
-  /// 执行冻结检查（每次轮询调用）
-  Future<FreezeState> checkFreezeConditions() async {
-    final reasons = <FreezeReason>[];
+    final btcVolThreshold = _adaptiveParams?.btcVolThreshold ?? AppConstants.btc5mVolatilityThreshold;
 
-    // F1: BTC短周期波动
+    // R1: BTC短周期波动
     final btc5m = _dataManager.getBtc5m();
-    final btc15m = _dataManager.getBtc15m();
     if (btc5m.length >= 6) {
       final vol5m = (btc5m.last.close - btc5m[btc5m.length - 6].close).abs() / btc5m[btc5m.length - 6].close;
-      if (vol5m > AppConstants.btc5mVolatilityThreshold) {
-        reasons.add(FreezeReason.btcVolatility);
-      }
-    }
-    if (btc15m.length >= 2) {
-      final vol15m = (btc15m.last.close - btc15m.first.close).abs() / btc15m.first.close;
-      if (vol15m > AppConstants.btc15mVolatilityThreshold) {
-        reasons.add(FreezeReason.btcVolatility);
+      if (vol5m > btcVolThreshold * 1.5) {
+        reasons.add('BTC极端波动(${ (vol5m * 100).toStringAsFixed(1)}%)');
+        level = RiskLevel.L3;
+      } else if (vol5m > btcVolThreshold) {
+        reasons.add('BTC波动较大(${(vol5m * 100).toStringAsFixed(1)}%)');
+        if (level.index < RiskLevel.L1.index) level = RiskLevel.L1;
       }
     }
 
-    // F2: BTC关键结构破位
+    // R2: BTC结构破位 → L2（允许逆势反转，不允许顺势）
     final btc4h = _dataManager.getBtc4h();
     if (btc4h.length >= 30 && StructureAnalyzer.isBtcStructureBroken(btc4h)) {
-      reasons.add(FreezeReason.btcStructureBreak);
+      reasons.add('BTC结构破位');
+      if (level.index < RiskLevel.L2.index) level = RiskLevel.L2;
     }
 
-    // F3: 行情校验失败（由数据层error事件驱动，这里检查数据状态）
+    // R3: 行情校验失败 → L3
     final ethData = _dataManager.ethData;
     final btcData = _dataManager.btcData;
     if (ethData == null || btcData == null) {
-      reasons.add(FreezeReason.dataValidationFailed);
+      reasons.add('行情数据异常');
+      level = RiskLevel.L3;
     }
 
-    // F4: 账户总风险
-    if (_checkAccountRisk()) {
-      reasons.add(FreezeReason.accountRiskExceeded);
+    // R4: 账户总风险
+    if (totalRisk >= AppConstants.accountRiskLimit) {
+      reasons.add('账户风险超限(${ (totalRisk * 100).toStringAsFixed(1)}%)');
+      level = RiskLevel.L3;
     }
 
-    // F5: 清算挤压
-    final ethData2 = _dataManager.ethData;
-    if (ethData2 != null) {
-      // OI变化
-      if (ethData2.openInterest > 0) {
-        _oiHistory.add(ethData2.openInterest);
+    // R5: 清算挤压 → L2
+    if (ethData != null) {
+      if (ethData.openInterest > 0) {
+        _oiHistory.add(ethData.openInterest);
         if (_oiHistory.length > 40) _oiHistory.removeAt(0);
       }
       double oiChange = 0.0;
       if (_oiHistory.length >= 2) {
         oiChange = (_oiHistory.last - _oiHistory[_oiHistory.length - 2]) / _oiHistory[_oiHistory.length - 2];
       }
-      // 主动买卖比（用订单流bar近似）
       final bars = _dataManager.orderFlow.getRecentBars(5);
       double buyVol = 0, sellVol = 0;
       for (final b in bars) {
@@ -179,50 +161,69 @@ class RiskManager {
         sellVol += b.sellVolume;
       }
       final activeRatio = sellVol > 0 ? buyVol / sellVol : 0.0;
-
       if (OIFundingAnalyzer.detectLiquidationSqueeze(
-        fundingRate: ethData2.fundingRate,
+        fundingRate: ethData.fundingRate,
         oiChange5m: oiChange,
         activeBuyRatio: activeRatio,
       )) {
-        reasons.add(FreezeReason.liquidationSqueeze);
+        reasons.add('清算挤压风险');
+        if (level.index < RiskLevel.L2.index) level = RiskLevel.L2;
       }
     }
 
-    // 状态机转换
-    if (reasons.isNotEmpty) {
-      if (!_freezeState.isFrozen) {
-        _freezeState = FreezeState(
-          isFrozen: true,
-          reasons: reasons,
-          frozenSince: DateTime.now().millisecondsSinceEpoch,
-          consecutiveUnfreezeChecks: 0,
-        );
-      } else {
-        _freezeState = _freezeState.copyWith(reasons: reasons, consecutiveUnfreezeChecks: 0);
-      }
-    } else {
-      if (_freezeState.isFrozen) {
-        final newCount = _freezeState.consecutiveUnfreezeChecks + 1;
-        if (newCount >= AppConstants.frozenConfirmations) {
-          _freezeState = FreezeState(isFrozen: false, consecutiveUnfreezeChecks: 0);
-        } else {
-          _freezeState = _freezeState.copyWith(consecutiveUnfreezeChecks: newCount);
-        }
-      }
-    }
-
-    _freezeController.add(_freezeState);
-    return _freezeState;
+    // 根据等级构建状态
+    _riskState = _buildState(level, reasons);
+    _riskController.add(_riskState);
+    return _riskState;
   }
 
-  /// 强制解冻（用于测试或手动）
-  void forceUnfreeze() {
-    _freezeState = FreezeState(isFrozen: false);
-    _freezeController.add(_freezeState);
+  RiskState _buildState(RiskLevel level, List<String> reasons) {
+    final adaptiveRR = _adaptiveParams?.minRiskReward ?? 4.0;
+    switch (level) {
+      case RiskLevel.L0:
+        return RiskState(
+          level: level,
+          reasons: reasons,
+          positionMultiplier: 1.0,
+          minRiskReward: adaptiveRR,
+          allowsSignals: true,
+          allowsTrendFollow: true,
+          allowsCounterTrend: true,
+        );
+      case RiskLevel.L1:
+        return RiskState(
+          level: level,
+          reasons: reasons,
+          positionMultiplier: 0.5,
+          minRiskReward: adaptiveRR + 1.0,
+          allowsSignals: true,
+          allowsTrendFollow: true,
+          allowsCounterTrend: true,
+        );
+      case RiskLevel.L2:
+        return RiskState(
+          level: level,
+          reasons: reasons,
+          positionMultiplier: 0.33,
+          minRiskReward: adaptiveRR + 2.0,
+          allowsSignals: true,
+          allowsTrendFollow: false, // 结构破位时只做逆势反转
+          allowsCounterTrend: true,
+        );
+      case RiskLevel.L3:
+        return RiskState(
+          level: level,
+          reasons: reasons,
+          positionMultiplier: 0,
+          minRiskReward: 99,
+          allowsSignals: false,
+          allowsTrendFollow: false,
+          allowsCounterTrend: false,
+        );
+    }
   }
 
   void dispose() {
-    _freezeController.close();
+    _riskController.close();
   }
 }

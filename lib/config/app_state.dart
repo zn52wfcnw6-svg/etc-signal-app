@@ -4,7 +4,10 @@ import '../data/market_data_manager.dart';
 import '../engine/long_cycle/long_cycle_manager.dart';
 import '../engine/short_cycle/signal_engine.dart';
 import '../engine/risk/risk_manager.dart';
-import '../engine/iteration/iteration_engine.dart';
+import '../engine/adaptive/adaptive_params.dart';
+import '../engine/market_regime/market_regime.dart';
+import '../engine/multi_timeframe/mtf_analyzer.dart';
+import '../engine/order_flow/deep_order_flow.dart';
 import '../monitor/self_healing.dart';
 import '../storage/database_helper.dart';
 import '../models/signal.dart';
@@ -16,91 +19,82 @@ class AppState extends ChangeNotifier {
   final MarketDataManager marketData = MarketDataManager();
   late final SignalEngine signalEngine;
   late final RiskManager riskManager;
-  late final IterationEngine iterationEngine;
   late final SelfHealingMonitor selfHealing;
   final DatabaseHelper database = DatabaseHelper();
 
   bool _isInitialized = false;
   bool _isRunning = false;
-  AppStateTag _appState = AppStateTag.noSignal;
   String _statusMessage = '初始化中...';
   TradingSignal? _currentSignal;
-  FreezeState? _freezeState;
+  RiskState? _riskState;
   double _ethPrice = 0;
   double _btcPrice = 0;
   double _ethBtcRatio = 0;
-  Map<String, dynamic> _signalStatus = {};
-  LongCycleResult? _longCycleResult;
+  AnalysisResult? _analysis;
 
   bool get isInitialized => _isInitialized;
   bool get isRunning => _isRunning;
-  AppStateTag get appState => _appState;
   String get statusMessage => _statusMessage;
   TradingSignal? get currentSignal => _currentSignal;
-  FreezeState? get freezeState => _freezeState;
+  RiskState? get riskState => _riskState;
   double get ethPrice => _ethPrice;
   double get btcPrice => _btcPrice;
   double get ethBtcRatio => _ethBtcRatio;
-  Map<String, dynamic> get signalStatus => _signalStatus;
-  LongCycleResult? get longCycleResult => _longCycleResult;
+  AnalysisResult? get analysis => _analysis;
+  LongCycleResult? get longCycleResult => _analysis?.longCycle;
+  AdaptiveParams? get adaptiveParams => _analysis?.adaptiveParams;
+  MarketRegimeResult? get marketRegime => _analysis?.regime;
+  MultiTimeframeResult? get mtfResult => _analysis?.mtf;
+  DeepOrderFlowResult? get deepOrderFlow => _analysis?.orderFlow;
   List<Position> get positions => riskManager.positions;
   double get accountBalance => riskManager.accountBalance;
   double get totalRisk => riskManager.totalRisk;
 
+  // 兼容旧接口
+  FreezeState? get freezeState => null;
+  bool get isFrozen => _riskState?.level == RiskLevel.L3;
+
   StreamSubscription? _ethSub;
   StreamSubscription? _btcSub;
   StreamSubscription? _signalSub;
-  StreamSubscription? _statusSub;
-  StreamSubscription? _freezeSub;
+  StreamSubscription? _analysisSub;
+  StreamSubscription? _riskSub;
   StreamSubscription? _errorSub;
   Timer? _mainTimer;
 
   Future<void> init() async {
     if (_isInitialized) return;
-
     await database.init();
-
     signalEngine = SignalEngine(marketData);
     riskManager = RiskManager(marketData);
-    iterationEngine = IterationEngine(database);
     selfHealing = SelfHealingMonitor(database);
-
     await marketData.init();
-
-    // 注册自修复检查
     _registerHealthChecks();
 
-    // 订阅数据流
     _ethSub = marketData.ethDataStream.listen((data) {
       _ethPrice = data.price;
-      _updateAppState();
+      notifyListeners();
     });
-
     _btcSub = marketData.btcDataStream.listen((data) {
       _btcPrice = data.price;
     });
-
     _signalSub = signalEngine.signalStream.listen((signal) {
       _currentSignal = signal;
       database.insertSignal(signal);
-      _updateAppState();
       notifyListeners();
     });
-
-    _statusSub = signalEngine.statusStream.listen((status) {
-      _signalStatus = status;
-      _statusMessage = status['message'] ?? '';
-      _updateAppState();
+    _analysisSub = signalEngine.analysisStream.listen((analysis) {
+      _analysis = analysis;
+      _statusMessage = analysis.statusMessage;
+      notifyListeners();
     });
-
-    _freezeSub = riskManager.freezeStream.listen((state) {
-      _freezeState = state;
-      _updateAppState();
+    _riskSub = riskManager.riskStream.listen((state) {
+      _riskState = state;
+      notifyListeners();
     });
-
     _errorSub = marketData.errorStream.listen((error) {
       _statusMessage = error;
-      _updateAppState();
+      notifyListeners();
     });
 
     _isInitialized = true;
@@ -110,9 +104,9 @@ class AppState extends ChangeNotifier {
 
   void _registerHealthChecks() {
     selfHealing.registerCheck('data', () async {
-      final etc = marketData.ethData;
+      final eth = marketData.ethData;
       final btc = marketData.btcData;
-      if (etc == null || btc == null) {
+      if (eth == null || btc == null) {
         return HealthCheckResult(
           module: 'data',
           isHealthy: false,
@@ -122,7 +116,6 @@ class AppState extends ChangeNotifier {
       }
       return HealthCheckResult(module: 'data', isHealthy: true);
     });
-
     selfHealing.registerHealer('data', () async {
       await marketData.manualRefresh();
       return marketData.ethData != null;
@@ -134,55 +127,39 @@ class AppState extends ChangeNotifier {
     _isRunning = true;
     marketData.startPolling();
     selfHealing.start();
-
     _mainTimer = Timer.periodic(
       const Duration(seconds: AppConstants.pollIntervalSeconds),
       (_) => _tick(),
     );
-
     _statusMessage = '运行中';
     notifyListeners();
   }
 
   Future<void> _tick() async {
     // 风控检查
-    await riskManager.checkFreezeConditions();
+    await riskManager.checkRiskConditions();
 
-    // 始终更新长周期分析（即使冻结也显示市场结构和关键位）
-    _longCycleResult = signalEngine.longCycle.analyze();
+    // 更新自适应参数给风控
+    final eth5m = marketData.getEth5m();
+    final adaptive = AdaptiveParams.calculate(eth5m);
+    riskManager.setAdaptiveParams(adaptive);
 
-    // 计算ETH/BTC强弱比（始终计算）
+    // 计算ETH/BTC强弱比
     if (_ethPrice > 0 && _btcPrice > 0) {
       _ethBtcRatio = _ethPrice / _btcPrice;
     }
 
-    // 如果冻结，不生成信号
-    if (_freezeState?.isFrozen ?? false) {
-      _statusMessage = '冻结中: ${_freezeState!.reasonText}';
-      _updateAppState();
+    // L3极端风险时不生成信号，但仍更新分析
+    if ((_riskState?.level ?? RiskLevel.L0) == RiskLevel.L3) {
+      _statusMessage = '极端风险: ${_riskState?.reasonText ?? ''}';
+      // 仍然运行分析以更新UI数据
+      await signalEngine.tick();
+      notifyListeners();
       return;
     }
 
-    // 信号引擎
+    // 信号引擎（内部整合所有分析模块）
     await signalEngine.tick();
-  }
-
-  void _updateAppState() {
-    if (_freezeState?.isFrozen ?? false) {
-      final reasons = _freezeState!.reasons;
-      if (reasons.contains(FreezeReason.dataValidationFailed)) {
-        _appState = AppStateTag.dataAbnormal;
-      } else {
-        _appState = AppStateTag.marketFrozen;
-      }
-    } else if (_currentSignal != null && _currentSignal!.status == SignalStatus.confirmed) {
-      _appState = _currentSignal!.direction == SignalDirection.long
-          ? AppStateTag.longCandidate
-          : AppStateTag.shortCandidate;
-    } else {
-      _appState = AppStateTag.noSignal;
-    }
-    notifyListeners();
   }
 
   Future<void> manualRefresh() async {
@@ -228,8 +205,8 @@ class AppState extends ChangeNotifier {
     _ethSub?.cancel();
     _btcSub?.cancel();
     _signalSub?.cancel();
-    _statusSub?.cancel();
-    _freezeSub?.cancel();
+    _analysisSub?.cancel();
+    _riskSub?.cancel();
     _errorSub?.cancel();
     marketData.dispose();
     signalEngine.dispose();
@@ -238,3 +215,13 @@ class AppState extends ChangeNotifier {
     super.dispose();
   }
 }
+
+// 兼容旧代码的占位类
+class FreezeState {
+  final bool isFrozen;
+  final List<dynamic> reasons;
+  FreezeState({this.isFrozen = false, this.reasons = const []});
+  String get reasonText => reasons.join(', ');
+}
+
+enum FreezeReason { none }

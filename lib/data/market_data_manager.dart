@@ -36,6 +36,7 @@ class MarketDataManager {
     await Future.wait([
       _fetchAndCacheKlines(AppConstants.ethSymbol, '1m', 100),
       _fetchAndCacheKlines(AppConstants.ethSymbol, '5m', 100),
+      _fetchAndCacheKlines(AppConstants.ethSymbol, '1h', 200),
       _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 200),
       _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 200),
       _fetchAndCacheKlines(AppConstants.btcSymbol, '5m', 50),
@@ -156,6 +157,9 @@ class MarketDataManager {
 
   /// 获取ETH 5m K线
   List<Kline> getEth5m() => getKlines(AppConstants.ethSymbol, '5m');
+
+  /// 获取ETH 1h K线
+  List<Kline> getEth1h() => getKlines(AppConstants.ethSymbol, '1h');
 
   /// 获取ETH 4h K线
   List<Kline> getEth4h() => getKlines(AppConstants.ethSymbol, '4h');

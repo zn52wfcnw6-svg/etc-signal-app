@@ -100,9 +100,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   _paramRow('运行状态', app.isRunning ? '运行中' : '已停止'),
                   _paramRow('初始化', app.isInitialized ? '已完成' : '未完成'),
-                  _paramRow('冻结状态', (app.freezeState?.isFrozen ?? false) ? '冻结中' : '正常'),
+                  _paramRow('风险等级', app.riskState?.level.name ?? 'L0'),
                   _paramRow('当前持仓', '${app.positions.length}笔'),
-                  _paramRow('迭代引擎状态', app.iterationEngine.state.name),
+                  _paramRow('自优化样本', '${app.signalEngine.optimizer.records.length}条'),
                 ],
               ),
             ),

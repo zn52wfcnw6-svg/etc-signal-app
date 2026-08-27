@@ -4,6 +4,7 @@ import '../../utils/indicators.dart';
 import '../../data/websocket_manager.dart';
 import '../long_cycle/long_cycle_manager.dart';
 import '../long_cycle/volatility_oi.dart';
+import '../adaptive/adaptive_params.dart';
 
 /// 确认链检测结果
 class ConfirmationResult {
@@ -39,7 +40,7 @@ class SignalDetector {
   SignalDetector(this._orderFlow);
 
   /// 检测多头候选（抓底）
-  ConfirmationResult detectLong(LongCycleResult longCycle, List<Kline> eth1m, List<Kline> eth5m) {
+  ConfirmationResult detectLong(LongCycleResult longCycle, List<Kline> eth1m, List<Kline> eth5m, {AdaptiveParams? adaptive}) {
     final gates = <String, bool>{};
     final currentPrice = longCycle.currentPrice;
     final support = longCycle.nearestSupport;
@@ -94,7 +95,7 @@ class SignalDetector {
 
     // 盈亏比检查
     final rr = (tp2 - entryMid) / risk;
-    if (rr < AppConstants.minRiskRewardRatio) {
+    if (rr < (adaptive?.minRiskReward ?? AppConstants.minRiskRewardRatio)) {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'risk_reward_too_low');
     }
 
@@ -122,7 +123,7 @@ class SignalDetector {
   }
 
   /// 检测空头候选（抓顶）
-  ConfirmationResult detectShort(LongCycleResult longCycle, List<Kline> eth1m, List<Kline> eth5m) {
+  ConfirmationResult detectShort(LongCycleResult longCycle, List<Kline> eth1m, List<Kline> eth5m, {AdaptiveParams? adaptive}) {
     final gates = <String, bool>{};
     final currentPrice = longCycle.currentPrice;
     final resistance = longCycle.nearestResistance;
@@ -167,7 +168,7 @@ class SignalDetector {
     final tp2 = support != null ? support.mid : entryMid - risk * 4;
 
     final rr = (entryMid - tp2) / risk;
-    if (rr < AppConstants.minRiskRewardRatio) {
+    if (rr < (adaptive?.minRiskReward ?? AppConstants.minRiskRewardRatio)) {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'risk_reward_too_low');
     }
 
