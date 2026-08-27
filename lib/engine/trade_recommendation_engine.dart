@@ -1,5 +1,6 @@
 import '../models/market_data.dart';
 import '../models/trade_recommendation.dart';
+import '../models/signal.dart';
 import '../utils/constants.dart';
 import '../engine/long_cycle/long_cycle_manager.dart';
 import '../engine/order_flow/deep_order_flow.dart';
@@ -25,8 +26,8 @@ class TradeRecommendationEngine {
       return TradeRecommendation.wait('行情数据加载中');
     }
 
-    final supports = longCycle?.supports ?? [];
-    final resistances = longCycle?.resistances ?? [];
+    final supports = longCycle?.supportLevels ?? [];
+    final resistances = longCycle?.resistanceLevels ?? [];
 
     if (supports.isEmpty && resistances.isEmpty) {
       return TradeRecommendation.wait('关键价位计算中');
@@ -35,27 +36,27 @@ class TradeRecommendationEngine {
     // 找最近的支撑位和压力位
     final nearestSupport = supports.isNotEmpty
         ? supports.reduce((a, b) =>
-            (currentPrice - a).abs() < (currentPrice - b).abs() ? a : b)
+            (currentPrice - a.mid).abs() < (currentPrice - b.mid).abs() ? a : b)
         : null;
     final nearestResistance = resistances.isNotEmpty
         ? resistances.reduce((a, b) =>
-            (a - currentPrice).abs() < (b - currentPrice).abs() ? a : b)
+            (a.mid - currentPrice).abs() < (b.mid - currentPrice).abs() ? a : b)
         : null;
 
     // 计算距离百分比
     final supportDist = nearestSupport != null
-        ? (currentPrice - nearestSupport) / currentPrice
+        ? (currentPrice - nearestSupport.mid) / currentPrice
         : double.infinity;
     final resistanceDist = nearestResistance != null
-        ? (nearestResistance - currentPrice) / currentPrice
+        ? (nearestResistance.mid - currentPrice) / currentPrice
         : double.infinity;
 
     // 接近压力位 → 候选做空
     if (nearestResistance != null && resistanceDist < 0.02 && resistanceDist < supportDist) {
       return _generateShortRecommendation(
         currentPrice: currentPrice,
-        entryZone: nearestResistance,
-        targetSupport: nearestSupport ?? currentPrice * 0.95,
+        entryZone: nearestResistance.mid,
+        targetSupport: nearestSupport?.mid ?? currentPrice * 0.95,
         orderFlow: orderFlow,
         riskLevel: riskLevel,
       );
@@ -65,8 +66,8 @@ class TradeRecommendationEngine {
     if (nearestSupport != null && supportDist < 0.02 && supportDist < resistanceDist) {
       return _generateLongRecommendation(
         currentPrice: currentPrice,
-        entryZone: nearestSupport,
-        targetResistance: nearestResistance ?? currentPrice * 1.05,
+        entryZone: nearestSupport.mid,
+        targetResistance: nearestResistance?.mid ?? currentPrice * 1.05,
         orderFlow: orderFlow,
         riskLevel: riskLevel,
       );
@@ -75,11 +76,11 @@ class TradeRecommendationEngine {
     // 在中间位置 → 观望，但给出等待的价位
     final waitReason = StringBuffer('价格在区间中部，等待');
     if (nearestResistance != null) {
-      waitReason.write('压力位\$${nearestResistance.toStringAsFixed(0)}做空');
+      waitReason.write('压力位\$${nearestResistance.mid.toStringAsFixed(0)}做空');
     }
     if (nearestSupport != null) {
       if (nearestResistance != null) waitReason.write('或');
-      waitReason.write('支撑位\$${nearestSupport.toStringAsFixed(0)}做多');
+      waitReason.write('支撑位\$${nearestSupport.mid.toStringAsFixed(0)}做多');
     }
     return TradeRecommendation.wait(waitReason.toString());
   }
@@ -87,9 +88,10 @@ class TradeRecommendationEngine {
   /// 从确认信号生成推单
   static TradeRecommendation _fromConfirmedSignal(TradingSignal signal, int riskLevel) {
     final positionSize = riskLevel >= 2 ? 0.33 : 1.0;
-    final risk = (signal.entryLower + signal.entryUpper) / 2 - signal.stopLoss;
-    final reward1 = signal.tp1 - (signal.entryLower + signal.entryUpper) / 2;
-    final rr = risk > 0 ? reward1.abs() / risk.abs() : 0;
+    final entryPrice = (signal.entryLower + signal.entryUpper) / 2;
+    final risk = (entryPrice - signal.stopLoss).abs();
+    final reward1 = (signal.tp1 - entryPrice).abs();
+    final rr = risk > 0 ? reward1 / risk : 0.0;
 
     return TradeRecommendation(
       direction: signal.direction == SignalDirection.long
@@ -128,7 +130,7 @@ class TradeRecommendationEngine {
 
     final risk = entryPrice - stopLoss;
     final reward = tp2 - entryPrice;
-    final rr = risk > 0 ? reward / risk : 0;
+    final rr = risk > 0 ? reward / risk : 0.0;
 
     final positionSize = riskLevel >= 2 ? 0.33 : 0.5;
 
@@ -172,7 +174,7 @@ class TradeRecommendationEngine {
 
     final risk = stopLoss - entryPrice;
     final reward = entryPrice - tp2;
-    final rr = risk > 0 ? reward / risk : 0;
+    final rr = risk > 0 ? reward / risk : 0.0;
 
     final positionSize = riskLevel >= 2 ? 0.33 : 0.5;
 
