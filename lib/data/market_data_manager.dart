@@ -29,8 +29,16 @@ class MarketDataManager {
   int _pollCount = 0;
 
   Future<void> init() async {
-    await _orderFlowManager.init();
-    await _preloadKlines();
+    try {
+      await _orderFlowManager.init();
+    } catch (_) {
+      // 订单流初始化失败不影响行情主功能
+    }
+    try {
+      await _preloadKlines();
+    } catch (_) {
+      // K线预加载失败不影响主功能
+    }
   }
 
   Future<void> _preloadKlines() async {

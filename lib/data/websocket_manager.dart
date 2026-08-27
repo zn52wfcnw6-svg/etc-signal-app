@@ -186,10 +186,14 @@ class OrderFlowManager {
 
   Future<void> init() async {
     for (final ex in AppConstants.orderFlowExchanges) {
-      final ws = ExchangeWebSocket(exchange: ex, symbol: AppConstants.ethSymbol);
-      _sockets[ex] = ws;
-      ws.tradeStream.listen((_) => _onTrade());
-      await ws.connect();
+      try {
+        final ws = ExchangeWebSocket(exchange: ex, symbol: AppConstants.ethSymbol);
+        _sockets[ex] = ws;
+        ws.tradeStream.listen((_) => _onTrade(), onError: (_) {});
+        await ws.connect();
+      } catch (_) {
+        // 单个交易所连接失败不影响其他交易所
+      }
     }
     _startBarAggregator();
   }
