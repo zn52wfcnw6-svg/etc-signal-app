@@ -20,7 +20,7 @@ dependencies:
   vibration: ^2.0.1
   audioplayers: ^6.1.0
   connectivity_plus: ^6.1.0
-  fl_chart: ^1.2.0
+  fl_chart: ^0.69.0
 
 dev_dependencies:
   flutter_test:
