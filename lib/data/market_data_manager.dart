@@ -47,11 +47,18 @@ class MarketDataManager {
 
   Future<void> _fetchAndCacheKlines(String symbol, String interval, int limit) async {
     final key = '${symbol}_$interval';
-    // 优先用Binance数据
-    final api = ExchangeFactory.get('binance');
-    final klines = await api.fetchKlines(symbol, interval, limit);
-    if (klines.isNotEmpty) {
-      _klineCache[key] = klines;
+    // 遍历所有交易所，直到获取到K线数据
+    for (final ex in AppConstants.exchanges) {
+      try {
+        final api = ExchangeFactory.get(ex);
+        final klines = await api.fetchKlines(symbol, interval, limit);
+        if (klines.isNotEmpty) {
+          _klineCache[key] = klines;
+          return;
+        }
+      } catch (_) {
+        // 继续尝试下一个交易所
+      }
     }
   }
 
@@ -122,21 +129,33 @@ class MarketDataManager {
 
   Future<void> _updateKlineCache(String symbol, String interval) async {
     final key = '${symbol}_$interval';
-    final api = ExchangeFactory.get('binance');
-    final klines = await api.fetchKlines(symbol, interval, 10);
-    if (klines.isNotEmpty && _klineCache.containsKey(key)) {
+    if (!_klineCache.containsKey(key)) {
+      // 缓存不存在，重新预加载
+      await _fetchAndCacheKlines(symbol, interval, 100);
+      return;
+    }
+    // 遍历所有交易所获取最新K线
+    List<Kline> klines = [];
+    for (final ex in AppConstants.exchanges) {
+      try {
+        final api = ExchangeFactory.get(ex);
+        final result = await api.fetchKlines(symbol, interval, 10);
+        if (result.isNotEmpty) {
+          klines = result;
+          break;
+        }
+      } catch (_) {}
+    }
+    if (klines.isNotEmpty) {
       final cached = _klineCache[key]!;
-      // 合并：替换最后一根，追加新K线
       final lastCachedTime = cached.last.closeTime;
       final newKlines = klines.where((k) => k.closeTime > lastCachedTime).toList();
       if (newKlines.isNotEmpty) {
         cached.addAll(newKlines);
-        // 保留最近500根
         if (cached.length > 500) {
           cached.removeRange(0, cached.length - 500);
         }
       } else if (klines.last.closeTime == cached.last.closeTime) {
-        // 更新当前K线
         cached[cached.length - 1] = klines.last;
       }
     }
