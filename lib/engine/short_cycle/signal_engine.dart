@@ -22,6 +22,7 @@ class SignalEngine {
   Stream<TradingSignal> get signalStream => _signalController.stream;
   Stream<Map<String, dynamic>> get statusStream => _statusController.stream;
   TradingSignal? get currentSignal => _currentSignal;
+  LongCycleManager get longCycle => _longCycle;
 
   SignalEngine(this._dataManager)
       : _longCycle = LongCycleManager(_dataManager),

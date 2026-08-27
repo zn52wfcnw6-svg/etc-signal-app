@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../data/market_data_manager.dart';
+import '../engine/long_cycle/long_cycle_manager.dart';
 import '../engine/short_cycle/signal_engine.dart';
 import '../engine/risk/risk_manager.dart';
 import '../engine/iteration/iteration_engine.dart';
@@ -29,6 +30,7 @@ class AppState extends ChangeNotifier {
   double _btcPrice = 0;
   double _etcBtcRatio = 0;
   Map<String, dynamic> _signalStatus = {};
+  LongCycleResult? _longCycleResult;
 
   bool get isInitialized => _isInitialized;
   bool get isRunning => _isRunning;
@@ -40,6 +42,7 @@ class AppState extends ChangeNotifier {
   double get btcPrice => _btcPrice;
   double get etcBtcRatio => _etcBtcRatio;
   Map<String, dynamic> get signalStatus => _signalStatus;
+  LongCycleResult? get longCycleResult => _longCycleResult;
   List<Position> get positions => riskManager.positions;
   double get accountBalance => riskManager.accountBalance;
   double get totalRisk => riskManager.totalRisk;
@@ -144,6 +147,9 @@ class AppState extends ChangeNotifier {
   Future<void> _tick() async {
     // 风控检查
     await riskManager.checkFreezeConditions();
+
+    // 始终更新长周期分析（即使冻结也显示市场结构和关键位）
+    _longCycleResult = signalEngine.longCycle.analyze();
 
     // 如果冻结，不生成信号
     if (_freezeState?.isFrozen ?? false) {
