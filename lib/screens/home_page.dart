@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/app_state.dart';
+import 'backtest_page.dart';
 import '../engine/risk/risk_manager.dart';
 import 'signal_panel.dart';
 import 'positions_page.dart';
@@ -42,6 +43,10 @@ class _HomePageState extends State<HomePage> {
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: () => app.manualRefresh(),
+              ),
+              IconButton(
+                icon: const Icon(Icons.assessment),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BacktestPage())),
               ),
             ],
           ),
