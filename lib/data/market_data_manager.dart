@@ -127,49 +127,35 @@ class MarketDataManager {
   }
 
   Future<ValidationResult> _fetchAndValidate(String symbol) async {
-    // 并行获取所有交易所的ticker
-    final futures = AppConstants.exchanges.map((ex) async {
+    final snapshots = <MarketSnapshot>[];
+    for (final ex in AppConstants.exchanges) {
       try {
         final api = ExchangeFactory.get(ex);
-        final ticker = await api.fetchTicker(symbol).timeout(
-          const Duration(seconds: 5),
-          onTimeout: () => null,
-        );
-        if (ticker == null || ticker.price <= 0) return null;
+        final ticker = await api.fetchTicker(symbol);
+        if (ticker == null || ticker.price <= 0) continue;
 
         // 资金费率和OI获取失败不影响ticker
         double funding = 0;
         double oi = 0;
         if (AppConstants.orderFlowExchanges.contains(ex)) {
           try {
-            funding = (await api.fetchFundingRate(symbol).timeout(
-                  const Duration(seconds: 3),
-                  onTimeout: () => null,
-                )) ??
-                0;
-            oi = (await api.fetchOpenInterest(symbol).timeout(
-                  const Duration(seconds: 3),
-                  onTimeout: () => null,
-                )) ??
-                0;
+            funding = (await api.fetchFundingRate(symbol)) ?? 0;
+            oi = (await api.fetchOpenInterest(symbol)) ?? 0;
           } catch (_) {}
         }
 
-        return MarketSnapshot(
+        snapshots.add(MarketSnapshot(
           exchange: ticker.exchange,
           symbol: ticker.symbol,
           price: ticker.price,
           fundingRate: funding,
           openInterest: oi,
           timestamp: ticker.timestamp,
-        );
+        ));
       } catch (_) {
-        return null;
+        // 继续尝试下一个交易所
       }
-    }).toList();
-
-    final results = await Future.wait(futures);
-    final snapshots = results.whereType<MarketSnapshot>().toList();
+    }
     return MarketValidator.validate(snapshots);
   }
 
