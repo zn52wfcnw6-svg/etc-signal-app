@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../../models/signal.dart';
+import '../../utils/constants.dart';
 import '../market_regime/market_regime.dart';
 
 /// 信号记录（用于胜率统计）

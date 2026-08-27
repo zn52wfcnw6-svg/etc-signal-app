@@ -35,9 +35,10 @@ class AdaptiveParams {
       return _default();
     }
 
-    final atr = Indicators.atr(klines, period: 14);
+    final atrValues = Indicators.atr(klines, 14);
+    final atr = atrValues.isNotEmpty ? (atrValues.last ?? 0) : 0.0;
     final currentPrice = klines.last.close;
-    final atrPercent = atr / currentPrice;
+    final atrPercent = currentPrice > 0 ? atr / currentPrice : 0.0;
 
     // 计算24h平均波动率（用48根5m K线 = 4h，简化）
     final recentVol = _averageTrueRange(klines.sublist(
@@ -105,7 +106,7 @@ class AdaptiveParams {
     if (klines.length < 2) return 0;
     double sum = 0;
     for (int i = 1; i < klines.length; i++) {
-      final tr = Indicators.trueRange(klines[i], klines[i - 1]);
+      final tr = _calcTrueRange(klines[i], klines[i - 1]);
       sum += tr;
     }
     return sum / (klines.length - 1);
@@ -115,5 +116,12 @@ class AdaptiveParams {
     if (isHighVolatility) return '高波动';
     if (isLowVolatility) return '低波动';
     return '正常波动';
+  }
+
+  static double _calcTrueRange(Kline current, Kline previous) {
+    final highLow = current.high - current.low;
+    final highClose = (current.high - previous.close).abs();
+    final lowClose = (current.low - previous.close).abs();
+    return [highLow, highClose, lowClose].reduce((a, b) => a > b ? a : b);
   }
 }

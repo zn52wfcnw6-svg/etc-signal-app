@@ -1,4 +1,5 @@
 import '../../models/market_data.dart';
+import '../../utils/constants.dart';
 import '../long_cycle/structure_analyzer.dart';
 import '../market_regime/market_regime.dart';
 import '../adaptive/adaptive_params.dart';

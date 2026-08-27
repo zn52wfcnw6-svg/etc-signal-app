@@ -242,7 +242,7 @@ class SignalEngine {
       marketRegime: regime.description,
       regime: regime.regime.name,
       mtfResonance: mtf.resonanceStrength(direction == SignalDirection.long),
-      confidenceScore: signal.confidenceScore,
+      confidenceScore: signal.confidenceScore.toDouble(),
       gates: signal.confirmationGates,
     ));
   }

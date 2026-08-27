@@ -55,7 +55,7 @@ class LiquidationZone {
 class DeepOrderFlowAnalyzer {
   /// 基于K线和成交数据分析
   static DeepOrderFlowResult analyze(List<Kline> klines, List<Trade> trades) {
-    final currentPrice = klines.isNotEmpty ? klines.last.close : 0;
+    final currentPrice = klines.isNotEmpty ? klines.last.close : 0.0;
 
     // 1. 大单追踪
     final largeOrderResult = _analyzeLargeOrders(trades);
@@ -118,7 +118,7 @@ class DeepOrderFlowAnalyzer {
     }
 
     final avgVol = trades.map((t) => t.quantity).reduce((a, b) => a + b) / trades.length;
-    final threshold = avgVol * 5;
+    final threshold = avgVol * 5.0;
 
     int buyCount = 0, sellCount = 0;
     double buyVol = 0, sellVol = 0;
@@ -245,7 +245,7 @@ class DeepOrderFlowAnalyzer {
     for (final price in wickPrices) {
       bool found = false;
       for (final c in clusters) {
-        if ((c['price'] as double - price).abs() / price < 0.003) {
+        if (((c['price'] as double) - price).abs() / price < 0.003) {
           c['count'] = (c['count'] as int) + 1;
           found = true;
           break;

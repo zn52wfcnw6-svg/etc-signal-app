@@ -50,10 +50,6 @@ class AppState extends ChangeNotifier {
   double get accountBalance => riskManager.accountBalance;
   double get totalRisk => riskManager.totalRisk;
 
-  // 兼容旧接口
-  FreezeState? get freezeState => null;
-  bool get isFrozen => _riskState?.level == RiskLevel.L3;
-
   StreamSubscription? _ethSub;
   StreamSubscription? _btcSub;
   StreamSubscription? _signalSub;
@@ -215,13 +211,3 @@ class AppState extends ChangeNotifier {
     super.dispose();
   }
 }
-
-// 兼容旧代码的占位类
-class FreezeState {
-  final bool isFrozen;
-  final List<dynamic> reasons;
-  FreezeState({this.isFrozen = false, this.reasons = const []});
-  String get reasonText => reasons.join(', ');
-}
-
-enum FreezeReason { none }

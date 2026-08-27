@@ -1,5 +1,6 @@
 import '../../models/market_data.dart';
 import '../../utils/indicators.dart';
+import '../../utils/constants.dart';
 import '../long_cycle/structure_analyzer.dart';
 import '../adaptive/adaptive_params.dart';
 
@@ -137,7 +138,10 @@ class MarketRegimeAnalyzer {
       final downMove = klines[i - 1].low - klines[i].low;
       if (upMove > downMove && upMove > 0) plusDM += upMove;
       if (downMove > upMove && downMove > 0) minusDM += downMove;
-      tr += Indicators.trueRange(klines[i], klines[i - 1]);
+      final highLow = klines[i].high - klines[i].low;
+      final highClose = (klines[i].high - klines[i-1].close).abs();
+      final lowClose = (klines[i].low - klines[i-1].close).abs();
+      tr += [highLow, highClose, lowClose].reduce((a, b) => a > b ? a : b);
     }
 
     if (tr == 0) return 0;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/app_state.dart';
 import '../models/signal.dart';
+import '../utils/constants.dart';
 import '../engine/long_cycle/long_cycle_manager.dart';
 import '../engine/risk/risk_manager.dart';
 
