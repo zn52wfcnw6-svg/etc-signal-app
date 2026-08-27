@@ -4,6 +4,13 @@ import 'config/app_state.dart';
 import 'screens/home_page.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 全局错误处理
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+  };
+
   runApp(const EthSignalApp());
 }
 
