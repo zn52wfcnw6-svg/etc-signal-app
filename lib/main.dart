@@ -21,7 +21,7 @@ class EthSignalApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey, brightness: Brightness.dark),
           useMaterial3: true,
           scaffoldBackgroundColor: const Color(0xFF0A0A0A),
-          cardTheme: CardThemeData(
+          cardTheme: CardTheme(
             color: Colors.grey.shade900,
             elevation: 2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
