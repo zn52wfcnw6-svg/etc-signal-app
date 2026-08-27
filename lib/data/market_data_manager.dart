@@ -1,0 +1,187 @@
+import 'dart:async';
+import 'apis/exchange_api.dart';
+import 'market_validator.dart';
+import 'websocket_manager.dart';
+import '../models/market_data.dart';
+import '../utils/constants.dart';
+
+/// 行情数据管理器：统一调度5家API、交叉校验、K线缓存
+class MarketDataManager {
+  final Map<String, List<Kline>> _klineCache = {};
+  final Map<String, MarketSnapshot?> _lastSnapshots = {};
+  ValidatedMarketData? _etcData;
+  ValidatedMarketData? _btcData;
+  final OrderFlowManager _orderFlowManager = OrderFlowManager();
+
+  final StreamController<ValidatedMarketData> _etcDataController = StreamController.broadcast();
+  final StreamController<ValidatedMarketData> _btcDataController = StreamController.broadcast();
+  final StreamController<String> _errorController = StreamController.broadcast();
+
+  Stream<ValidatedMarketData> get etcDataStream => _etcDataController.stream;
+  Stream<ValidatedMarketData> get btcDataStream => _btcDataController.stream;
+  Stream<String> get errorStream => _errorController.stream;
+  ValidatedMarketData? get etcData => _etcData;
+  ValidatedMarketData? get btcData => _btcData;
+  OrderFlowManager get orderFlow => _orderFlowManager;
+
+  Timer? _pollTimer;
+  bool _isRunning = false;
+
+  Future<void> init() async {
+    await _orderFlowManager.init();
+    await _preloadKlines();
+  }
+
+  Future<void> _preloadKlines() async {
+    await Future.wait([
+      _fetchAndCacheKlines(AppConstants.etcSymbol, '1m', 100),
+      _fetchAndCacheKlines(AppConstants.etcSymbol, '5m', 100),
+      _fetchAndCacheKlines(AppConstants.etcSymbol, '4h', 200),
+      _fetchAndCacheKlines(AppConstants.etcSymbol, '1d', 200),
+      _fetchAndCacheKlines(AppConstants.btcSymbol, '5m', 50),
+      _fetchAndCacheKlines(AppConstants.btcSymbol, '15m', 50),
+      _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 200),
+    ]);
+  }
+
+  Future<void> _fetchAndCacheKlines(String symbol, String interval, int limit) async {
+    final key = '${symbol}_$interval';
+    // 优先用Binance数据
+    final api = ExchangeFactory.get('binance');
+    final klines = await api.fetchKlines(symbol, interval, limit);
+    if (klines.isNotEmpty) {
+      _klineCache[key] = klines;
+    }
+  }
+
+  void startPolling() {
+    if (_isRunning) return;
+    _isRunning = true;
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: AppConstants.pollIntervalSeconds),
+      (_) => _poll(),
+    );
+    _poll(); // 立即执行一次
+  }
+
+  Future<void> _poll() async {
+    try {
+      final etcResult = await _fetchAndValidate(AppConstants.etcSymbol);
+      if (etcResult.data != null) {
+        _etcData = etcResult.data;
+        _etcDataController.add(etcResult.data!);
+      } else if (etcResult.isFailed) {
+        _errorController.add('ETC行情校验失败: ${etcResult.reason}');
+      }
+
+      final btcResult = await _fetchAndValidate(AppConstants.btcSymbol);
+      if (btcResult.data != null) {
+        _btcData = btcResult.data;
+        _btcDataController.add(btcResult.data!);
+      } else if (btcResult.isFailed) {
+        _errorController.add('BTC行情校验失败: ${btcResult.reason}');
+      }
+
+      // 更新K线缓存（只更新1m/5m）
+      await _updateKlineCache(AppConstants.etcSymbol, '1m');
+      await _updateKlineCache(AppConstants.etcSymbol, '5m');
+      await _updateKlineCache(AppConstants.btcSymbol, '5m');
+      await _updateKlineCache(AppConstants.btcSymbol, '15m');
+    } catch (e) {
+      _errorController.add('行情轮询异常: $e');
+    }
+  }
+
+  Future<ValidationResult> _fetchAndValidate(String symbol) async {
+    final snapshots = <MarketSnapshot>[];
+    for (final ex in AppConstants.exchanges) {
+      final api = ExchangeFactory.get(ex);
+      final ticker = await api.fetchTicker(symbol);
+      if (ticker != null) {
+        // 附加资金费率和OI（仅主源）
+        if (AppConstants.orderFlowExchanges.contains(ex)) {
+          final funding = await api.fetchFundingRate(symbol);
+          final oi = await api.fetchOpenInterest(symbol);
+          snapshots.add(MarketSnapshot(
+            exchange: ticker.exchange,
+            symbol: ticker.symbol,
+            price: ticker.price,
+            fundingRate: funding ?? 0,
+            openInterest: oi ?? 0,
+            timestamp: ticker.timestamp,
+          ));
+        } else {
+          snapshots.add(ticker);
+        }
+      }
+      _lastSnapshots['${ex}_$symbol'] = ticker;
+    }
+    return MarketValidator.validate(snapshots);
+  }
+
+  Future<void> _updateKlineCache(String symbol, String interval) async {
+    final key = '${symbol}_$interval';
+    final api = ExchangeFactory.get('binance');
+    final klines = await api.fetchKlines(symbol, interval, 10);
+    if (klines.isNotEmpty && _klineCache.containsKey(key)) {
+      final cached = _klineCache[key]!;
+      // 合并：替换最后一根，追加新K线
+      final lastCachedTime = cached.last.closeTime;
+      final newKlines = klines.where((k) => k.closeTime > lastCachedTime).toList();
+      if (newKlines.isNotEmpty) {
+        cached.addAll(newKlines);
+        // 保留最近500根
+        if (cached.length > 500) {
+          cached.removeRange(0, cached.length - 500);
+        }
+      } else if (klines.last.closeTime == cached.last.closeTime) {
+        // 更新当前K线
+        cached[cached.length - 1] = klines.last;
+      }
+    }
+  }
+
+  /// 手动刷新
+  Future<void> manualRefresh() async {
+    await _poll();
+  }
+
+  /// 获取K线缓存
+  List<Kline> getKlines(String symbol, String interval) {
+    return _klineCache['${symbol}_$interval'] ?? [];
+  }
+
+  /// 获取ETC 1m K线
+  List<Kline> getEtc1m() => getKlines(AppConstants.etcSymbol, '1m');
+
+  /// 获取ETC 5m K线
+  List<Kline> getEtc5m() => getKlines(AppConstants.etcSymbol, '5m');
+
+  /// 获取ETC 4h K线
+  List<Kline> getEtc4h() => getKlines(AppConstants.etcSymbol, '4h');
+
+  /// 获取ETC 1d K线
+  List<Kline> getEtc1d() => getKlines(AppConstants.etcSymbol, '1d');
+
+  /// 获取BTC 5m K线
+  List<Kline> getBtc5m() => getKlines(AppConstants.btcSymbol, '5m');
+
+  /// 获取BTC 15m K线
+  List<Kline> getBtc15m() => getKlines(AppConstants.btcSymbol, '15m');
+
+  /// 获取BTC 4h K线
+  List<Kline> getBtc4h() => getKlines(AppConstants.btcSymbol, '4h');
+
+  void stopPolling() {
+    _isRunning = false;
+    _pollTimer?.cancel();
+  }
+
+  void dispose() {
+    stopPolling();
+    _orderFlowManager.dispose();
+    _etcDataController.close();
+    _btcDataController.close();
+    _errorController.close();
+  }
+}

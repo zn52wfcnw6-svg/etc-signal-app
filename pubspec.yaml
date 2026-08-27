@@ -1,0 +1,30 @@
+name: etc_signal_app
+description: "ETC永续合约机构级信号监控系统"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.2.2
+  web_socket_channel: ^3.0.1
+  sqflite: ^2.3.3+1
+  path: ^1.9.0
+  provider: ^6.1.2
+  intl: ^0.19.0
+  shared_preferences: ^2.3.2
+  vibration: ^2.0.1
+  audioplayers: ^6.1.0
+  connectivity_plus: ^6.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
