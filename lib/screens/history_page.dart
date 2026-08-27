@@ -18,7 +18,9 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   void initState() {
     super.initState();
-    _loadSignals();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSignals();
+    });
   }
 
   Future<void> _loadSignals() async {
