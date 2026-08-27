@@ -24,19 +24,6 @@ void main() {
 }
 
 void _showError(String error, String stack) {
-  // 忽略非致命错误：WebSocket、网络、HTTP、超时等
-  final lowerError = error.toLowerCase();
-  if (lowerError.contains('websocket') ||
-      lowerError.contains('socket') ||
-      lowerError.contains('http') ||
-      lowerError.contains('network') ||
-      lowerError.contains('timeout') ||
-      lowerError.contains('connection') ||
-      lowerError.contains('failed to connect') ||
-      lowerError.contains('connection refused')) {
-    return; // 忽略网络错误，不显示错误页面
-  }
-  // 错误信息通过全局key显示
   if (_errorKey.currentState != null) {
     _errorKey.currentState!.setError(error, stack);
   }
