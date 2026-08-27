@@ -55,6 +55,8 @@ class AppState extends ChangeNotifier {
   Future<void> init() async {
     if (_isInitialized) return;
 
+    await database.init();
+
     signalEngine = SignalEngine(marketData);
     riskManager = RiskManager(marketData);
     iterationEngine = IterationEngine(database);
