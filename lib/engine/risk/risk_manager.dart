@@ -110,9 +110,9 @@ class RiskManager {
 
     final btcVolThreshold = _adaptiveParams?.btcVolThreshold ?? AppConstants.btc5mVolatilityThreshold;
 
-    // R1: BTC短周期波动
+    // R1: BTC短周期波动（BTC数据不足时跳过）
     final btc5m = _dataManager.getBtc5m();
-    if (btc5m.length >= 6) {
+    if (btc5m.length >= 6 && _dataManager.btcData != null) {
       final vol5m = (btc5m.last.close - btc5m[btc5m.length - 6].close).abs() / btc5m[btc5m.length - 6].close;
       if (vol5m > btcVolThreshold * 1.5) {
         reasons.add('BTC极端波动(${ (vol5m * 100).toStringAsFixed(1)}%)');
@@ -123,19 +123,23 @@ class RiskManager {
       }
     }
 
-    // R2: BTC结构破位 → L2（允许逆势反转，不允许顺势）
+    // R2: BTC结构破位 → L2（BTC数据不足时跳过）
     final btc4h = _dataManager.getBtc4h();
-    if (btc4h.length >= 30 && StructureAnalyzer.isBtcStructureBroken(btc4h)) {
+    if (btc4h.length >= 30 && _dataManager.btcData != null && StructureAnalyzer.isBtcStructureBroken(btc4h)) {
       reasons.add('BTC结构破位');
       if (level.index < RiskLevel.L2.index) level = RiskLevel.L2;
     }
 
-    // R3: 行情校验失败 → L3
+    // R3: 行情校验失败 → 只有ETH缺失才L3，BTC缺失只警告（S级容错）
     final ethData = _dataManager.ethData;
     final btcData = _dataManager.btcData;
-    if (ethData == null || btcData == null) {
-      reasons.add('行情数据异常');
+    if (ethData == null) {
+      reasons.add('ETH行情数据异常');
       level = RiskLevel.L3;
+    } else if (btcData == null) {
+      reasons.add('BTC数据暂不可用，跳过大盘联动');
+      // BTC缺失不冻结，只降级到L1（允许交易，但缺少BTC联动判断）
+      if (level.index < RiskLevel.L1.index) level = RiskLevel.L1;
     }
 
     // R4: 账户总风险
