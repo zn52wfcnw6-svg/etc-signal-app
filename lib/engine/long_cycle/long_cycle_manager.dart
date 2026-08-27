@@ -49,7 +49,7 @@ class LongCycleManager {
     final eth1d = _dataManager.getEth1d();
     final ethData = _dataManager.ethData;
 
-    if (eth4h.length < 20) {
+    if (eth4h.length < 10) {
       return LongCycleResult(
         state: LongCycleState.neutral,
         structure: StructureAnalysis(structure: MarketStructure.ranging, swingHighs: [], swingLows: []),
@@ -69,8 +69,8 @@ class LongCycleManager {
     // 关键位（4H + 1D合并）
     final support4h = KeyLevelDrawer.drawSupportLevels(eth4h);
     final resistance4h = KeyLevelDrawer.drawResistanceLevels(eth4h);
-    final support1d = eth1d.length >= 20 ? KeyLevelDrawer.drawSupportLevels(eth1d) : <KeyLevel>[];
-    final resistance1d = eth1d.length >= 20 ? KeyLevelDrawer.drawResistanceLevels(eth1d) : <KeyLevel>[];
+    final support1d = eth1d.length >= 10 ? KeyLevelDrawer.drawSupportLevels(eth1d) : <KeyLevel>[];
+    final resistance1d = eth1d.length >= 10 ? KeyLevelDrawer.drawResistanceLevels(eth1d) : <KeyLevel>[];
 
     // 合并4H和1D关键位，去重
     final allSupports = [...support4h, ...support1d];

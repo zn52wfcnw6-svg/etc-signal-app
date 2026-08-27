@@ -34,17 +34,21 @@ class MarketDataManager {
   }
 
   Future<void> _preloadKlines() async {
-    // 并行加载，减少数量避免代理过载
-    await Future.wait([
-      _fetchAndCacheKlines(AppConstants.ethSymbol, '1m', 50),
-      _fetchAndCacheKlines(AppConstants.ethSymbol, '5m', 50),
-      _fetchAndCacheKlines(AppConstants.ethSymbol, '1h', 50),
-      _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 50),
-      _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 50),
-      _fetchAndCacheKlines(AppConstants.btcSymbol, '5m', 30),
-      _fetchAndCacheKlines(AppConstants.btcSymbol, '15m', 30),
-      _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 50),
-    ]);
+    // 串行加载，避免CORS代理限流
+    final tasks = [
+      ('eth', '1m', 50),
+      ('eth', '5m', 50),
+      ('eth', '1h', 50),
+      ('eth', '4h', 50),
+      ('eth', '1d', 50),
+      ('btc', '5m', 30),
+      ('btc', '15m', 30),
+      ('btc', '4h', 50),
+    ];
+    for (final t in tasks) {
+      final symbol = t.$1 == 'eth' ? AppConstants.ethSymbol : AppConstants.btcSymbol;
+      await _fetchAndCacheKlines(symbol, t.$2, t.$3);
+    }
   }
 
   /// 检查K线是否充足
@@ -108,16 +112,16 @@ class MarketDataManager {
       // 长周期K线不足时重新加载（每10次轮询检查一次）
       _pollCount++;
       if (_pollCount % 5 == 0) {
-        if (!_hasEnoughKlines(AppConstants.ethSymbol, '4h', 20)) {
+        if (!_hasEnoughKlines(AppConstants.ethSymbol, '4h', 10)) {
           await _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 100);
         }
-        if (!_hasEnoughKlines(AppConstants.ethSymbol, '1d', 20)) {
+        if (!_hasEnoughKlines(AppConstants.ethSymbol, '1d', 10)) {
           await _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 100);
         }
-        if (!_hasEnoughKlines(AppConstants.ethSymbol, '1h', 20)) {
+        if (!_hasEnoughKlines(AppConstants.ethSymbol, '1h', 10)) {
           await _fetchAndCacheKlines(AppConstants.ethSymbol, '1h', 100);
         }
-        if (!_hasEnoughKlines(AppConstants.btcSymbol, '4h', 20)) {
+        if (!_hasEnoughKlines(AppConstants.btcSymbol, '4h', 10)) {
           await _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 100);
         }
       }
