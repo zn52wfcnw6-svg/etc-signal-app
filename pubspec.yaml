@@ -1,5 +1,5 @@
 name: etc_signal_app
-description: "ETC永续合约机构级信号监控系统"
+description: "ETH永续合约机构级信号监控系统"
 publish_to: 'none'
 version: 1.0.0+1
 

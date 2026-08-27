@@ -75,7 +75,7 @@ class PositionsPage extends StatelessWidget {
   Widget _positionCard(Position pos, AppState app, BuildContext context) {
     final isLong = pos.direction == SignalDirection.long;
     final color = isLong ? Colors.green : Colors.red;
-    final currentPrice = app.etcPrice;
+    final currentPrice = app.ethPrice;
     final pnl = pos.unrealizedPnl(currentPrice);
     final pnlColor = pnl >= 0 ? Colors.green : Colors.red;
 

@@ -9,18 +9,18 @@ import '../utils/constants.dart';
 class MarketDataManager {
   final Map<String, List<Kline>> _klineCache = {};
   final Map<String, MarketSnapshot?> _lastSnapshots = {};
-  ValidatedMarketData? _etcData;
+  ValidatedMarketData? _ethData;
   ValidatedMarketData? _btcData;
   final OrderFlowManager _orderFlowManager = OrderFlowManager();
 
-  final StreamController<ValidatedMarketData> _etcDataController = StreamController.broadcast();
+  final StreamController<ValidatedMarketData> _ethDataController = StreamController.broadcast();
   final StreamController<ValidatedMarketData> _btcDataController = StreamController.broadcast();
   final StreamController<String> _errorController = StreamController.broadcast();
 
-  Stream<ValidatedMarketData> get etcDataStream => _etcDataController.stream;
+  Stream<ValidatedMarketData> get ethDataStream => _ethDataController.stream;
   Stream<ValidatedMarketData> get btcDataStream => _btcDataController.stream;
   Stream<String> get errorStream => _errorController.stream;
-  ValidatedMarketData? get etcData => _etcData;
+  ValidatedMarketData? get ethData => _ethData;
   ValidatedMarketData? get btcData => _btcData;
   OrderFlowManager get orderFlow => _orderFlowManager;
 
@@ -34,10 +34,10 @@ class MarketDataManager {
 
   Future<void> _preloadKlines() async {
     await Future.wait([
-      _fetchAndCacheKlines(AppConstants.etcSymbol, '1m', 100),
-      _fetchAndCacheKlines(AppConstants.etcSymbol, '5m', 100),
-      _fetchAndCacheKlines(AppConstants.etcSymbol, '4h', 200),
-      _fetchAndCacheKlines(AppConstants.etcSymbol, '1d', 200),
+      _fetchAndCacheKlines(AppConstants.ethSymbol, '1m', 100),
+      _fetchAndCacheKlines(AppConstants.ethSymbol, '5m', 100),
+      _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 200),
+      _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 200),
       _fetchAndCacheKlines(AppConstants.btcSymbol, '5m', 50),
       _fetchAndCacheKlines(AppConstants.btcSymbol, '15m', 50),
       _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 200),
@@ -66,12 +66,12 @@ class MarketDataManager {
 
   Future<void> _poll() async {
     try {
-      final etcResult = await _fetchAndValidate(AppConstants.etcSymbol);
-      if (etcResult.data != null) {
-        _etcData = etcResult.data;
-        _etcDataController.add(etcResult.data!);
-      } else if (etcResult.isFailed) {
-        _errorController.add('ETC行情校验失败: ${etcResult.reason}');
+      final ethResult = await _fetchAndValidate(AppConstants.ethSymbol);
+      if (ethResult.data != null) {
+        _ethData = ethResult.data;
+        _ethDataController.add(ethResult.data!);
+      } else if (ethResult.isFailed) {
+        _errorController.add('ETH行情校验失败: ${ethResult.reason}');
       }
 
       final btcResult = await _fetchAndValidate(AppConstants.btcSymbol);
@@ -83,8 +83,8 @@ class MarketDataManager {
       }
 
       // 更新K线缓存（只更新1m/5m）
-      await _updateKlineCache(AppConstants.etcSymbol, '1m');
-      await _updateKlineCache(AppConstants.etcSymbol, '5m');
+      await _updateKlineCache(AppConstants.ethSymbol, '1m');
+      await _updateKlineCache(AppConstants.ethSymbol, '5m');
       await _updateKlineCache(AppConstants.btcSymbol, '5m');
       await _updateKlineCache(AppConstants.btcSymbol, '15m');
     } catch (e) {
@@ -151,17 +151,17 @@ class MarketDataManager {
     return _klineCache['${symbol}_$interval'] ?? [];
   }
 
-  /// 获取ETC 1m K线
-  List<Kline> getEtc1m() => getKlines(AppConstants.etcSymbol, '1m');
+  /// 获取ETH 1m K线
+  List<Kline> getEth1m() => getKlines(AppConstants.ethSymbol, '1m');
 
-  /// 获取ETC 5m K线
-  List<Kline> getEtc5m() => getKlines(AppConstants.etcSymbol, '5m');
+  /// 获取ETH 5m K线
+  List<Kline> getEth5m() => getKlines(AppConstants.ethSymbol, '5m');
 
-  /// 获取ETC 4h K线
-  List<Kline> getEtc4h() => getKlines(AppConstants.etcSymbol, '4h');
+  /// 获取ETH 4h K线
+  List<Kline> getEth4h() => getKlines(AppConstants.ethSymbol, '4h');
 
-  /// 获取ETC 1d K线
-  List<Kline> getEtc1d() => getKlines(AppConstants.etcSymbol, '1d');
+  /// 获取ETH 1d K线
+  List<Kline> getEth1d() => getKlines(AppConstants.ethSymbol, '1d');
 
   /// 获取BTC 5m K线
   List<Kline> getBtc5m() => getKlines(AppConstants.btcSymbol, '5m');
@@ -180,7 +180,7 @@ class MarketDataManager {
   void dispose() {
     stopPolling();
     _orderFlowManager.dispose();
-    _etcDataController.close();
+    _ethDataController.close();
     _btcDataController.close();
     _errorController.close();
   }

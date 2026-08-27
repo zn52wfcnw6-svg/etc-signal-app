@@ -30,7 +30,7 @@ class _HomePageState extends State<HomePage> {
       builder: (context, app, child) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('ETC永续信号监控'),
+            title: const Text('ETH永续信号监控'),
             backgroundColor: _appBarColor(app.appState),
             actions: [
               IconButton(
@@ -98,7 +98,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               Text(
-                'ETC: \$${app.etcPrice.toStringAsFixed(2)}',
+                'ETH: \$${app.ethPrice.toStringAsFixed(2)}',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ],
@@ -115,7 +115,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               Text('BTC: \$${app.btcPrice.toStringAsFixed(0)}', style: const TextStyle(fontSize: 11)),
               const SizedBox(width: 16),
-              Text('ETC/BTC: ${app.etcBtcRatio.toStringAsFixed(5)}', style: const TextStyle(fontSize: 11)),
+              Text('ETH/BTC: ${app.ethBtcRatio.toStringAsFixed(5)}', style: const TextStyle(fontSize: 11)),
               const SizedBox(width: 16),
               Text('账户风险: ${(app.totalRisk * 100).toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: app.totalRisk > 0.04 ? Colors.red : Colors.grey)),
             ],

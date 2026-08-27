@@ -41,7 +41,7 @@ class SignalPanel extends StatelessWidget {
 
   // === 市场分析卡片（无信号/冻结时显示）===
   Widget _marketAnalysisCard(AppState app, dynamic longCycle, bool isFrozen) {
-    final currentPrice = app.etcPrice;
+    final currentPrice = app.ethPrice;
     String outlook = '';
     String suggestion = '';
     Color outlookColor = Colors.grey;
@@ -137,7 +137,7 @@ class SignalPanel extends StatelessWidget {
   Widget _keyLevelsCard(dynamic longCycle, AppState app) {
     final supports = longCycle.supportLevels as List;
     final resistances = longCycle.resistanceLevels as List;
-    final currentPrice = app.etcPrice;
+    final currentPrice = app.ethPrice;
 
     return Card(
       elevation: 2,

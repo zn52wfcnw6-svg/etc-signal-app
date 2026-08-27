@@ -148,9 +148,9 @@ class RiskManager {
     }
 
     // F3: 行情校验失败（由数据层error事件驱动，这里检查数据状态）
-    final etcData = _dataManager.etcData;
+    final ethData = _dataManager.ethData;
     final btcData = _dataManager.btcData;
-    if (etcData == null || btcData == null) {
+    if (ethData == null || btcData == null) {
       reasons.add(FreezeReason.dataValidationFailed);
     }
 
@@ -160,11 +160,11 @@ class RiskManager {
     }
 
     // F5: 清算挤压
-    final etcData2 = _dataManager.etcData;
-    if (etcData2 != null) {
+    final ethData2 = _dataManager.ethData;
+    if (ethData2 != null) {
       // OI变化
-      if (etcData2.openInterest > 0) {
-        _oiHistory.add(etcData2.openInterest);
+      if (ethData2.openInterest > 0) {
+        _oiHistory.add(ethData2.openInterest);
         if (_oiHistory.length > 40) _oiHistory.removeAt(0);
       }
       double oiChange = 0.0;
@@ -181,7 +181,7 @@ class RiskManager {
       final activeRatio = sellVol > 0 ? buyVol / sellVol : 0.0;
 
       if (OIFundingAnalyzer.detectLiquidationSqueeze(
-        fundingRate: etcData2.fundingRate,
+        fundingRate: ethData2.fundingRate,
         oiChange5m: oiChange,
         activeBuyRatio: activeRatio,
       )) {

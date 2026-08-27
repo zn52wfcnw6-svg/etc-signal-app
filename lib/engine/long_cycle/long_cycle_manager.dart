@@ -45,11 +45,11 @@ class LongCycleManager {
 
   /// 执行长周期分析
   LongCycleResult analyze() {
-    final etc4h = _dataManager.getEtc4h();
-    final etc1d = _dataManager.getEtc1d();
-    final etcData = _dataManager.etcData;
+    final eth4h = _dataManager.getEth4h();
+    final eth1d = _dataManager.getEth1d();
+    final ethData = _dataManager.ethData;
 
-    if (etc4h.length < 30) {
+    if (eth4h.length < 30) {
       return LongCycleResult(
         state: LongCycleState.neutral,
         structure: StructureAnalysis(structure: MarketStructure.ranging, swingHighs: [], swingLows: []),
@@ -58,19 +58,19 @@ class LongCycleManager {
         volatility: VolatilityAnalysis(atrValue: 0, state: 'normal'),
         fundingState: 'neutral',
         hasOIDivergence: false,
-        currentPrice: etcData?.price ?? 0,
+        currentPrice: ethData?.price ?? 0,
         description: '4H K线数据不足',
       );
     }
 
     // 结构分析（4H为主，1D辅助）
-    final structure = StructureAnalyzer.analyze(etc4h);
+    final structure = StructureAnalyzer.analyze(eth4h);
 
     // 关键位（4H + 1D合并）
-    final support4h = KeyLevelDrawer.drawSupportLevels(etc4h);
-    final resistance4h = KeyLevelDrawer.drawResistanceLevels(etc4h);
-    final support1d = etc1d.length >= 30 ? KeyLevelDrawer.drawSupportLevels(etc1d) : <KeyLevel>[];
-    final resistance1d = etc1d.length >= 30 ? KeyLevelDrawer.drawResistanceLevels(etc1d) : <KeyLevel>[];
+    final support4h = KeyLevelDrawer.drawSupportLevels(eth4h);
+    final resistance4h = KeyLevelDrawer.drawResistanceLevels(eth4h);
+    final support1d = eth1d.length >= 30 ? KeyLevelDrawer.drawSupportLevels(eth1d) : <KeyLevel>[];
+    final resistance1d = eth1d.length >= 30 ? KeyLevelDrawer.drawResistanceLevels(eth1d) : <KeyLevel>[];
 
     // 合并4H和1D关键位，去重
     final allSupports = [...support4h, ...support1d];
@@ -79,25 +79,25 @@ class LongCycleManager {
     allResistances.sort((a, b) => b.strength.compareTo(a.strength));
 
     // 波动率
-    final volatility = VolatilityAnalyzer.analyze(etc4h);
+    final volatility = VolatilityAnalyzer.analyze(eth4h);
 
     // 资金费率
-    final fundingRate = etcData?.fundingRate ?? 0;
+    final fundingRate = ethData?.fundingRate ?? 0;
     final fundingState = OIFundingAnalyzer.fundingState(fundingRate);
 
     // OI历史与背离
-    if (etcData?.openInterest != null && etcData!.openInterest > 0) {
-      _oiHistory.add(etcData.openInterest);
+    if (ethData?.openInterest != null && ethData!.openInterest > 0) {
+      _oiHistory.add(ethData.openInterest);
       if (_oiHistory.length > 100) _oiHistory.removeAt(0);
     }
     final hasOIDivergence = OIFundingAnalyzer.detectOIDivergence(
-      etc4h.sublist(etc4h.length > 20 ? etc4h.length - 20 : 0),
+      eth4h.sublist(eth4h.length > 20 ? eth4h.length - 20 : 0),
       _oiHistory,
       bullish: structure.structure == MarketStructure.downtrend,
     );
 
     // 判定长周期状态
-    final currentPrice = etcData?.price ?? etc4h.last.close;
+    final currentPrice = ethData?.price ?? eth4h.last.close;
     final state = _determineState(
       currentPrice,
       allSupports.isNotEmpty ? allSupports.first : null,

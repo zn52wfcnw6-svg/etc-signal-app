@@ -39,7 +39,7 @@ class SignalDetector {
   SignalDetector(this._orderFlow);
 
   /// 检测多头候选（抓底）
-  ConfirmationResult detectLong(LongCycleResult longCycle, List<Kline> etc1m, List<Kline> etc5m) {
+  ConfirmationResult detectLong(LongCycleResult longCycle, List<Kline> eth1m, List<Kline> eth5m) {
     final gates = <String, bool>{};
     final currentPrice = longCycle.currentPrice;
     final support = longCycle.nearestSupport;
@@ -51,25 +51,25 @@ class SignalDetector {
     }
 
     // G2: 流动性清扫（下影线刺穿支撑带下沿后收回）
-    gates['G2_liquidity_sweep'] = _checkLiquiditySweep(etc5m, support!, isLong: true);
+    gates['G2_liquidity_sweep'] = _checkLiquiditySweep(eth5m, support!, isLong: true);
     if (!gates['G2_liquidity_sweep']!) {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'G2_liquidity_sweep');
     }
 
     // G3: CVD底背离
-    gates['G3_cvd_divergence'] = _orderFlow.checkCVDBullishDivergence(etc5m);
+    gates['G3_cvd_divergence'] = _orderFlow.checkCVDBullishDivergence(eth5m);
     if (!gates['G3_cvd_divergence']!) {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'G3_cvd_divergence');
     }
 
     // G4: Delta反转（卖盘衰竭，买盘介入）
-    gates['G4_delta_reversal'] = _orderFlow.checkDeltaReversal(etc1m, bullish: true);
+    gates['G4_delta_reversal'] = _orderFlow.checkDeltaReversal(eth1m, bullish: true);
     if (!gates['G4_delta_reversal']!) {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'G4_delta_reversal');
     }
 
     // G5: K线反转形态
-    gates['G5_pattern'] = _checkBullishPattern(etc1m);
+    gates['G5_pattern'] = _checkBullishPattern(eth1m);
     if (!gates['G5_pattern']!) {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'G5_pattern');
     }
@@ -78,8 +78,8 @@ class SignalDetector {
     gates['G6_poll_confirm'] = true; // 占位，由SignalEngine管理连续确认
 
     // 计算点位
-    final sweepLow = _findSweepLow(etc5m, support);
-    final atrBuf = VolatilityAnalyzer.atrBuffer(etc5m);
+    final sweepLow = _findSweepLow(eth5m, support);
+    final atrBuf = VolatilityAnalyzer.atrBuffer(eth5m);
     final stopLoss = sweepLow - atrBuf;
     final entryLower = support.lower;
     final entryUpper = support.mid;
@@ -102,8 +102,8 @@ class SignalDetector {
     final breakdown = _calcConfidence(
       longCycle: longCycle,
       support: support,
-      etc1m: etc1m,
-      etc5m: etc5m,
+      eth1m: eth1m,
+      eth5m: eth5m,
       isLong: true,
     );
     final score = breakdown.values.reduce((a, b) => a + b);
@@ -122,7 +122,7 @@ class SignalDetector {
   }
 
   /// 检测空头候选（抓顶）
-  ConfirmationResult detectShort(LongCycleResult longCycle, List<Kline> etc1m, List<Kline> etc5m) {
+  ConfirmationResult detectShort(LongCycleResult longCycle, List<Kline> eth1m, List<Kline> eth5m) {
     final gates = <String, bool>{};
     final currentPrice = longCycle.currentPrice;
     final resistance = longCycle.nearestResistance;
@@ -132,30 +132,30 @@ class SignalDetector {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'G1_position');
     }
 
-    gates['G2_liquidity_sweep'] = _checkLiquiditySweep(etc5m, resistance!, isLong: false);
+    gates['G2_liquidity_sweep'] = _checkLiquiditySweep(eth5m, resistance!, isLong: false);
     if (!gates['G2_liquidity_sweep']!) {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'G2_liquidity_sweep');
     }
 
-    gates['G3_cvd_divergence'] = _orderFlow.checkCVDBearishDivergence(etc5m);
+    gates['G3_cvd_divergence'] = _orderFlow.checkCVDBearishDivergence(eth5m);
     if (!gates['G3_cvd_divergence']!) {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'G3_cvd_divergence');
     }
 
-    gates['G4_delta_reversal'] = _orderFlow.checkDeltaReversal(etc1m, bullish: false);
+    gates['G4_delta_reversal'] = _orderFlow.checkDeltaReversal(eth1m, bullish: false);
     if (!gates['G4_delta_reversal']!) {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'G4_delta_reversal');
     }
 
-    gates['G5_pattern'] = _checkBearishPattern(etc1m);
+    gates['G5_pattern'] = _checkBearishPattern(eth1m);
     if (!gates['G5_pattern']!) {
       return ConfirmationResult(allPassed: false, gates: gates, failedGate: 'G5_pattern');
     }
 
     gates['G6_poll_confirm'] = true;
 
-    final sweepHigh = _findSweepHigh(etc5m, resistance);
-    final atrBuf = VolatilityAnalyzer.atrBuffer(etc5m);
+    final sweepHigh = _findSweepHigh(eth5m, resistance);
+    final atrBuf = VolatilityAnalyzer.atrBuffer(eth5m);
     final stopLoss = sweepHigh + atrBuf;
     final entryLower = resistance.mid;
     final entryUpper = resistance.upper;
@@ -174,8 +174,8 @@ class SignalDetector {
     final breakdown = _calcConfidence(
       longCycle: longCycle,
       support: resistance,
-      etc1m: etc1m,
-      etc5m: etc5m,
+      eth1m: eth1m,
+      eth5m: eth5m,
       isLong: false,
     );
     final score = breakdown.values.reduce((a, b) => a + b);
@@ -267,8 +267,8 @@ class SignalDetector {
   Map<String, int> _calcConfidence({
     required LongCycleResult longCycle,
     required KeyLevel support,
-    required List<Kline> etc1m,
-    required List<Kline> etc5m,
+    required List<Kline> eth1m,
+    required List<Kline> eth5m,
     required bool isLong,
   }) {
     final breakdown = <String, int>{};
@@ -297,8 +297,8 @@ class SignalDetector {
     // 多周期共振 (0-20)
     int resonanceScore = 10;
     // 1m和5m都在关键位附近
-    final price1m = etc1m.isNotEmpty ? etc1m.last.close.toDouble() : 0.0;
-    final price5m = etc5m.isNotEmpty ? etc5m.last.close.toDouble() : 0.0;
+    final price1m = eth1m.isNotEmpty ? eth1m.last.close.toDouble() : 0.0;
+    final price5m = eth5m.isNotEmpty ? eth5m.last.close.toDouble() : 0.0;
     if (support.contains(price1m) && support.contains(price5m)) {
       resonanceScore = 20;
     }

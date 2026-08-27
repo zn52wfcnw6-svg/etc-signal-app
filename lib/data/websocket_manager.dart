@@ -182,11 +182,11 @@ class OrderFlowManager {
 
   Stream<OrderFlowBar> get barStream => _barController.stream;
   double get cumulativeCVD => _cumulativeCVD;
-  List<OrderFlowBar> get orderFlowBars => List.unmodifiable(_orderFlowBars['ETC'] ?? []);
+  List<OrderFlowBar> get orderFlowBars => List.unmodifiable(_orderFlowBars['ETH'] ?? []);
 
   Future<void> init() async {
     for (final ex in AppConstants.orderFlowExchanges) {
-      final ws = ExchangeWebSocket(exchange: ex, symbol: AppConstants.etcSymbol);
+      final ws = ExchangeWebSocket(exchange: ex, symbol: AppConstants.ethSymbol);
       _sockets[ex] = ws;
       ws.tradeStream.listen((_) => _onTrade());
       await ws.connect();
@@ -228,9 +228,9 @@ class OrderFlowManager {
         sellVolume: sellVol,
       );
 
-      _orderFlowBars.putIfAbsent('ETC', () => []).add(bar);
-      if ((_orderFlowBars['ETC']?.length ?? 0) > 1440) {
-        _orderFlowBars['ETC']!.removeAt(0);
+      _orderFlowBars.putIfAbsent('ETH', () => []).add(bar);
+      if ((_orderFlowBars['ETH']?.length ?? 0) > 1440) {
+        _orderFlowBars['ETH']!.removeAt(0);
       }
       _barController.add(bar);
     });
@@ -238,7 +238,7 @@ class OrderFlowManager {
 
   /// 获取最近N根订单流bar
   List<OrderFlowBar> getRecentBars(int count) {
-    final bars = _orderFlowBars['ETC'] ?? [];
+    final bars = _orderFlowBars['ETH'] ?? [];
     return bars.length > count ? bars.sublist(bars.length - count) : bars;
   }
 

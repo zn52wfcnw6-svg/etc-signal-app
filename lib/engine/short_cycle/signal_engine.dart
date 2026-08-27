@@ -45,10 +45,10 @@ class SignalEngine {
       return;
     }
 
-    final etc1m = _dataManager.getEtc1m();
-    final etc5m = _dataManager.getEtc5m();
+    final eth1m = _dataManager.getEth1m();
+    final eth5m = _dataManager.getEth5m();
 
-    if (etc1m.length < 10 || etc5m.length < 10) {
+    if (eth1m.length < 10 || eth5m.length < 10) {
       _emitStatus(longCycle: longCycle, message: 'K线数据不足');
       return;
     }
@@ -57,20 +57,20 @@ class SignalEngine {
 
     // 优先检测待确认方向
     if (_pendingDirection == SignalDirection.long && longCycle.allowsLong) {
-      result = _detector.detectLong(longCycle, etc1m, etc5m);
+      result = _detector.detectLong(longCycle, eth1m, eth5m);
     } else if (_pendingDirection == SignalDirection.short && longCycle.allowsShort) {
-      result = _detector.detectShort(longCycle, etc1m, etc5m);
+      result = _detector.detectShort(longCycle, eth1m, eth5m);
     } else {
       // 新检测：优先尝试多头
       if (longCycle.allowsLong) {
-        result = _detector.detectLong(longCycle, etc1m, etc5m);
+        result = _detector.detectLong(longCycle, eth1m, eth5m);
         if (result.allPassed) {
           _pendingDirection = SignalDirection.long;
         }
       }
       if (result == null || !result.allPassed) {
         if (longCycle.allowsShort) {
-          result = _detector.detectShort(longCycle, etc1m, etc5m);
+          result = _detector.detectShort(longCycle, eth1m, eth5m);
           if (result.allPassed) {
             _pendingDirection = SignalDirection.short;
           }
@@ -127,7 +127,7 @@ class SignalEngine {
       confirmationGates: result.gates,
       marketRegime: longCycle.structure.structure.name,
       volatilityState: longCycle.volatility.state,
-      fundingRateAtSignal: _dataManager.etcData?.fundingRate ?? 0,
+      fundingRateAtSignal: _dataManager.ethData?.fundingRate ?? 0,
     );
 
     _currentSignal = signal;

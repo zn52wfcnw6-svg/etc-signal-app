@@ -4,18 +4,18 @@ import 'config/app_state.dart';
 import 'screens/home_page.dart';
 
 void main() {
-  runApp(const EtcSignalApp());
+  runApp(const EthSignalApp());
 }
 
-class EtcSignalApp extends StatelessWidget {
-  const EtcSignalApp({super.key});
+class EthSignalApp extends StatelessWidget {
+  const EthSignalApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => AppState()..init(),
       child: MaterialApp(
-        title: 'ETC永续信号监控',
+        title: 'ETH永续信号监控',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey, brightness: Brightness.dark),

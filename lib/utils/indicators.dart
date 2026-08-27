@@ -168,14 +168,14 @@ class Indicators {
     return median(deviations);
   }
 
-  /// 相对强度 RS（ETC vs BTC）
-  static double relativeStrength(List<double> etcCloses, List<double> btcCloses, int period) {
-    if (etcCloses.length < period + 1 || btcCloses.length < period + 1) return 0;
-    final etcChange = (etcCloses.last - etcCloses[etcCloses.length - 1 - period]) /
-        etcCloses[etcCloses.length - 1 - period];
+  /// 相对强度 RS（ETH vs BTC）
+  static double relativeStrength(List<double> ethCloses, List<double> btcCloses, int period) {
+    if (ethCloses.length < period + 1 || btcCloses.length < period + 1) return 0;
+    final ethChange = (ethCloses.last - ethCloses[ethCloses.length - 1 - period]) /
+        ethCloses[ethCloses.length - 1 - period];
     final btcChange = (btcCloses.last - btcCloses[btcCloses.length - 1 - period]) /
         btcCloses[btcCloses.length - 1 - period];
-    return etcChange - btcChange;
+    return ethChange - btcChange;
   }
 
   /// 识别摆动点

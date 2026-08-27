@@ -26,9 +26,9 @@ class AppState extends ChangeNotifier {
   String _statusMessage = '初始化中...';
   TradingSignal? _currentSignal;
   FreezeState? _freezeState;
-  double _etcPrice = 0;
+  double _ethPrice = 0;
   double _btcPrice = 0;
-  double _etcBtcRatio = 0;
+  double _ethBtcRatio = 0;
   Map<String, dynamic> _signalStatus = {};
   LongCycleResult? _longCycleResult;
 
@@ -38,16 +38,16 @@ class AppState extends ChangeNotifier {
   String get statusMessage => _statusMessage;
   TradingSignal? get currentSignal => _currentSignal;
   FreezeState? get freezeState => _freezeState;
-  double get etcPrice => _etcPrice;
+  double get ethPrice => _ethPrice;
   double get btcPrice => _btcPrice;
-  double get etcBtcRatio => _etcBtcRatio;
+  double get ethBtcRatio => _ethBtcRatio;
   Map<String, dynamic> get signalStatus => _signalStatus;
   LongCycleResult? get longCycleResult => _longCycleResult;
   List<Position> get positions => riskManager.positions;
   double get accountBalance => riskManager.accountBalance;
   double get totalRisk => riskManager.totalRisk;
 
-  StreamSubscription? _etcSub;
+  StreamSubscription? _ethSub;
   StreamSubscription? _btcSub;
   StreamSubscription? _signalSub;
   StreamSubscription? _statusSub;
@@ -71,8 +71,8 @@ class AppState extends ChangeNotifier {
     _registerHealthChecks();
 
     // 订阅数据流
-    _etcSub = marketData.etcDataStream.listen((data) {
-      _etcPrice = data.price;
+    _ethSub = marketData.ethDataStream.listen((data) {
+      _ethPrice = data.price;
       _updateAppState();
     });
 
@@ -110,7 +110,7 @@ class AppState extends ChangeNotifier {
 
   void _registerHealthChecks() {
     selfHealing.registerCheck('data', () async {
-      final etc = marketData.etcData;
+      final etc = marketData.ethData;
       final btc = marketData.btcData;
       if (etc == null || btc == null) {
         return HealthCheckResult(
@@ -125,7 +125,7 @@ class AppState extends ChangeNotifier {
 
     selfHealing.registerHealer('data', () async {
       await marketData.manualRefresh();
-      return marketData.etcData != null;
+      return marketData.ethData != null;
     });
   }
 
@@ -161,9 +161,9 @@ class AppState extends ChangeNotifier {
     // 信号引擎
     await signalEngine.tick();
 
-    // 计算ETC/BTC强弱比
-    if (_etcPrice > 0 && _btcPrice > 0) {
-      _etcBtcRatio = _etcPrice / _btcPrice;
+    // 计算ETH/BTC强弱比
+    if (_ethPrice > 0 && _btcPrice > 0) {
+      _ethBtcRatio = _ethPrice / _btcPrice;
     }
   }
 
@@ -225,7 +225,7 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     stop();
-    _etcSub?.cancel();
+    _ethSub?.cancel();
     _btcSub?.cancel();
     _signalSub?.cancel();
     _statusSub?.cancel();

@@ -10,7 +10,7 @@ class AppConstants {
   static const List<String> orderFlowExchanges = ['binance', 'okx'];
 
   // 交易对
-  static const String etcSymbol = 'ETCUSDT';
+  static const String ethSymbol = 'ETHUSDT';
   static const String btcSymbol = 'BTCUSDT';
 
   // 行情校验
@@ -70,7 +70,7 @@ class AppConstants {
   static const int frozenConfirmations = 3; // 连续3次确认解冻
 
   // 数据库
-  static const String dbName = 'etc_signal.db';
+  static const String dbName = 'eth_signal.db';
   static const int dbVersion = 1;
 
   // 数据保留

@@ -115,7 +115,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('ETC永续信号监控系统', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text('ETH永续信号监控系统', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     SizedBox(height: 8),
                     Text('版本: 1.0.0', style: TextStyle(fontSize: 13, color: Colors.grey)),
                     SizedBox(height: 4),
