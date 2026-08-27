@@ -4,28 +4,29 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 /// 多代理备选+自动重试的HTTP请求工具
-/// S级标准：确保网络请求的稳定性和可靠性
+/// S级标准：优先直连，代理兜底，确保网络请求的稳定性和可靠性
 class RobustHttpClient {
-  /// CORS代理列表（按优先级排序）
+  /// CORS代理列表（按优先级排序，仅作为兜底）
   static const List<String> _proxies = [
-    'https://corsproxy.io/?url=',
     'https://api.allorigins.win/raw?url=',
     'https://thingproxy.freeboard.io/fetch/',
   ];
 
   /// 最大重试次数
-  static const int _maxRetries = 3;
+  static const int _maxRetries = 2;
 
   /// 单次请求超时（秒）
-  static const int _timeoutSeconds = 15;
+  static const int _timeoutSeconds = 10;
 
   /// 重试间隔（毫秒）
-  static const int _retryDelayMs = 1000;
+  static const int _retryDelayMs = 800;
 
-  /// 发送GET请求，自动尝试多个代理和重试
+  /// 发送GET请求
+  /// Web环境：优先直连 → 失败后尝试代理
+  /// 非Web环境：直接请求
   static Future<http.Response?> get(String url, {int timeoutSeconds = _timeoutSeconds}) async {
+    // 非Web环境直接请求
     if (!kIsWeb) {
-      // 非Web环境直接请求
       try {
         return await http.get(Uri.parse(url)).timeout(Duration(seconds: timeoutSeconds));
       } catch (_) {
@@ -33,7 +34,23 @@ class RobustHttpClient {
       }
     }
 
-    // Web环境：依次尝试每个代理，每个代理重试多次
+    // Web环境：第一步，优先直连（OKX等交易所API支持CORS）
+    for (int attempt = 0; attempt < _maxRetries; attempt++) {
+      try {
+        final response = await http.get(Uri.parse(url)).timeout(Duration(seconds: timeoutSeconds));
+        if (response.statusCode == 200 && response.body.isNotEmpty) {
+          return response;
+        }
+      } catch (_) {
+        // 直连失败（CORS或网络问题），继续尝试代理
+        break;
+      }
+      if (attempt < _maxRetries - 1) {
+        await Future.delayed(const Duration(milliseconds: _retryDelayMs));
+      }
+    }
+
+    // Web环境：第二步，代理兜底
     for (final proxy in _proxies) {
       for (int attempt = 0; attempt < _maxRetries; attempt++) {
         try {
@@ -45,7 +62,6 @@ class RobustHttpClient {
         } catch (_) {
           // 继续重试或下一个代理
         }
-        // 重试间隔
         if (attempt < _maxRetries - 1) {
           await Future.delayed(const Duration(milliseconds: _retryDelayMs));
         }
