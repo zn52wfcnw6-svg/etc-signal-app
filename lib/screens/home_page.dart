@@ -160,7 +160,7 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 4),
           Row(
             children: [
-              Text('BTC: ' + (app.btcPrice > 0 ? '\$' + app.btcPrice.toStringAsFixed(0) : '获取中'), style: const TextStyle(fontSize: 11)),
+              Text('BTC: \$${app.btcPrice.toStringAsFixed(0)}', style: const TextStyle(fontSize: 11)),
               const SizedBox(width: 12),
               Text('ETH/BTC: ${app.ethBtcRatio.toStringAsFixed(5)}', style: const TextStyle(fontSize: 11)),
               const SizedBox(width: 12),
