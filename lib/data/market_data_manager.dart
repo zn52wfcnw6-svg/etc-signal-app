@@ -160,7 +160,25 @@ class MarketDataManager {
         // 继续尝试下一个交易所
       }
     }
-    return MarketValidator.validate(snapshots);
+    final result = MarketValidator.validate(snapshots);
+    // S级容错：校验失败但有数据时，降级使用第一个有效源
+    if (result.isFailed && snapshots.isNotEmpty) {
+      final fallback = snapshots.first;
+      return ValidationResult(
+        data: ValidatedMarketData(
+          price: fallback.price,
+          fundingRate: fallback.fundingRate,
+          openInterest: fallback.openInterest,
+          validSources: [fallback.exchange],
+          excludedSources: const [],
+          isDegraded: true,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        ),
+        abnormalSources: const [],
+        reason: '多源校验失败，降级使用${fallback.exchange}单源',
+      );
+    }
+    return result;
   }
 
   Future<void> _updateKlineCache(String symbol, String interval) async {
