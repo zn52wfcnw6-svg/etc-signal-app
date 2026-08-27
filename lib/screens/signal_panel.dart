@@ -260,6 +260,7 @@ class SignalPanel extends StatelessWidget {
             if (orderFlow != null) ...[
               const Divider(height: 16),
               _infoRow('订单流', orderFlow.summary),
+              _infoRow('WS连接', app.marketData.orderFlow.isConnected ? '已连接' : '连接中...'),
               _infoRow('大单方向', orderFlow.largeOrders.description),
               _infoRow('成交密集区', '\$${orderFlow.volumeDensity.highestDensityPrice.toStringAsFixed(2)}'),
               _infoRow('清算风险', orderFlow.liquidation.description),

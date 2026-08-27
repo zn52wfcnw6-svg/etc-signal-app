@@ -118,15 +118,10 @@ class DeepOrderFlowAnalyzer {
     final price = currentPrice ?? (klines.isNotEmpty ? klines.last.close : 0);
     final oi = openInterest ?? 0;
 
-    // 订单流数据为空时，用K线数据模拟
-    final effectiveBars = orderFlowBars.isNotEmpty
-        ? orderFlowBars
-        : _generateSimulatedBars(klines);
-
-    final largeOrders = _analyzeLargeOrders(effectiveBars);
+    final largeOrders = _analyzeLargeOrders(orderFlowBars);
     final volumeDensity = _analyzeVolumeDensity(klines, price);
     final liquidation = _analyzeLiquidation(klines, price, oi);
-    final orderBook = _analyzeOrderBookImbalance(klines, effectiveBars);
+    final orderBook = _analyzeOrderBookImbalance(klines, orderFlowBars);
 
     int bullish = 0;
     int bearish = 0;
@@ -167,29 +162,6 @@ class DeepOrderFlowAnalyzer {
 
   /// 大单追踪分析
   /// 用K线数据模拟订单流bar
-  static List<OrderFlowBar> _generateSimulatedBars(List<Kline> klines) {
-    if (klines.isEmpty) return [];
-    final bars = <OrderFlowBar>[];
-    double cvd = 0;
-    for (final k in klines) {
-      final range = k.high - k.low;
-      if (range <= 0) continue;
-      // 估算买盘量：收盘价在区间中的位置
-      final buyRatio = (k.close - k.low) / range;
-      final totalVol = k.volume;
-      final buyVol = totalVol * buyRatio.clamp(0.0, 1.0);
-      final sellVol = totalVol - buyVol;
-      cvd += (buyVol - sellVol);
-      bars.add(OrderFlowBar(
-        time: k.openTime,
-        cvd: cvd,
-        buyVolume: buyVol,
-        sellVolume: sellVol,
-      ));
-    }
-    return bars;
-  }
-
   static LargeOrderAnalysis _analyzeLargeOrders(List<OrderFlowBar> bars) {
     if (bars.isEmpty) {
       return LargeOrderAnalysis(

@@ -31,7 +31,7 @@ class ExchangeWebSocket {
   String get _wsUrl {
     switch (exchange) {
       case 'binance':
-        return 'wss://fstream.binance.com/ws/${symbol.toLowerCase()}@aggTrade';
+        return 'wss://fstream.binance.com/ws/${symbol.toLowerCase()}@trade';
       case 'okx':
         return 'wss://ws.okx.com:8443/ws/v5/public';
       default:
@@ -76,7 +76,7 @@ class ExchangeWebSocket {
       final msg = json.decode(data.toString());
       if (exchange == 'binance') {
         final trade = Trade(
-          id: msg['a'] is int ? msg['a'] : int.parse(msg['a'].toString()),
+          id: msg['t'] is int ? msg['t'] : int.parse(msg['t'].toString()),
           time: msg['T'] is int ? msg['T'] : int.parse(msg['T'].toString()),
           price: double.parse(msg['p'].toString()),
           quantity: double.parse(msg['q'].toString()),
@@ -207,22 +207,23 @@ class OrderFlowManager {
   }
 
   void _startBarAggregator() {
-    Timer.periodic(const Duration(minutes: 1), (_) {
+    Timer.periodic(const Duration(seconds: 10), (_) {
       final now = DateTime.now();
-      final minuteStart = DateTime(now.year, now.month, now.day, now.hour, now.minute).millisecondsSinceEpoch;
+      // 10秒bar时间对齐
+      final tenSecondStart = (now.millisecondsSinceEpoch ~/ 10000) * 10000;
 
       double buyVol = 0, sellVol = 0;
       for (final ws in _sockets.values) {
-        final trades = ws.getTradesSince(minuteStart);
+        final trades = ws.getTradesSince(tenSecondStart);
         for (final t in trades) {
           if (t.isBuyerMaker) sellVol += t.quantity;
           else buyVol += t.quantity;
         }
-        ws.clearTradesBefore(minuteStart);
+        ws.clearTradesBefore(tenSecondStart);
       }
 
       final bar = OrderFlowBar(
-        time: minuteStart,
+        time: tenSecondStart,
         cvd: _cumulativeCVD,
         buyVolume: buyVol,
         sellVolume: sellVol,
@@ -240,6 +241,20 @@ class OrderFlowManager {
   List<OrderFlowBar> getRecentBars(int count) {
     final bars = _orderFlowBars['ETH'] ?? [];
     return bars.length > count ? bars.sublist(bars.length - count) : bars;
+  }
+
+  /// 获取WebSocket连接状态
+  Map<String, WsConnectionState> get connectionStates {
+    final states = <String, WsConnectionState>{};
+    _sockets.forEach((ex, ws) {
+      states[ex] = ws.state;
+    });
+    return states;
+  }
+
+  /// 是否有至少一个WebSocket已连接
+  bool get isConnected {
+    return _sockets.values.any((ws) => ws.state == WsConnectionState.connected);
   }
 
   /// CVD底背离检测
