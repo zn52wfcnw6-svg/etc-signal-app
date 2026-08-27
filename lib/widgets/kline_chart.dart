@@ -66,15 +66,18 @@ class _KlineChartState extends State<KlineChart> {
       if (k.volume > maxVolume) maxVolume = k.volume;
     }
 
-    // 包含支撑压力位和止损止盈在价格范围内
+    // 包含支撑压力位和止损止盈在价格范围内（排除0值和异常值）
+    final currentPrice = showKlines.isNotEmpty ? showKlines.last.close : 0;
     final extraLevels = <double>[
       ...?widget.supportLevels,
       ...?widget.resistanceLevels,
-      if (widget.stopLoss != null) widget.stopLoss!,
-      if (widget.tp1 != null) widget.tp1!,
-      if (widget.tp2 != null) widget.tp2!,
+      if (widget.stopLoss != null && widget.stopLoss! > 0) widget.stopLoss!,
+      if (widget.tp1 != null && widget.tp1! > 0) widget.tp1!,
+      if (widget.tp2 != null && widget.tp2! > 0) widget.tp2!,
     ];
     for (final level in extraLevels) {
+      // 只包含合理范围内的价位（当前价格±50%）
+      if (currentPrice > 0 && (level < currentPrice * 0.5 || level > currentPrice * 1.5)) continue;
       if (level < minPrice) minPrice = level;
       if (level > maxPrice) maxPrice = level;
     }
@@ -212,7 +215,7 @@ class _KlineChartState extends State<KlineChart> {
                           ),
                         )),
                     // 止损
-                    if (widget.stopLoss != null)
+                    if (widget.stopLoss != null && widget.stopLoss! > 0)
                       HorizontalLine(
                         y: widget.stopLoss!,
                         color: Colors.redAccent,
@@ -225,7 +228,7 @@ class _KlineChartState extends State<KlineChart> {
                         ),
                       ),
                     // TP1
-                    if (widget.tp1 != null)
+                    if (widget.tp1 != null && widget.tp1! > 0)
                       HorizontalLine(
                         y: widget.tp1!,
                         color: Colors.greenAccent,
@@ -238,7 +241,7 @@ class _KlineChartState extends State<KlineChart> {
                         ),
                       ),
                     // TP2
-                    if (widget.tp2 != null)
+                    if (widget.tp2 != null && widget.tp2! > 0)
                       HorizontalLine(
                         y: widget.tp2!,
                         color: Colors.green,
