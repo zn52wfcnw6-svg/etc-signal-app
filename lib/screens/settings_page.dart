@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/app_state.dart';
 import '../utils/constants.dart';
 import '../services/telegram_push_service.dart';
+import '../engine/adaptive/self_optimization_engine.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -18,6 +19,8 @@ class _SettingsPageState extends State<SettingsPage> {
   final TelegramPushService _telegramService = TelegramPushService();
   bool _telegramEnabled = false;
   bool _testingTelegram = false;
+  final SelfOptimizationEngine _optimizationEngine = SelfOptimizationEngine();
+  bool _optimizationLoaded = false;
 
   @override
   void initState() {
@@ -26,6 +29,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final app = context.read<AppState>();
       _balanceController.text = app.accountBalance.toStringAsFixed(2);
       _loadTelegramConfig();
+      _loadOptimizationData();
     });
   }
 
@@ -36,6 +40,11 @@ class _SettingsPageState extends State<SettingsPage> {
       _chatIdController.text = _telegramService.chatId ?? '';
       _telegramEnabled = _telegramService.enabled;
     });
+  }
+
+  Future<void> _loadOptimizationData() async {
+    await _optimizationEngine.loadResults();
+    setState(() => _optimizationLoaded = true);
   }
 
   @override
@@ -233,6 +242,61 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
 
             const SizedBox(height: 24),
+            _sectionTitle('自优化引擎'),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _optimizationLoaded
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _statItem('总信号', '${_optimizationEngine.totalSignals}'),
+                              _statItem('胜率', _optimizationEngine.winRate > 0 ? '${(_optimizationEngine.winRate*100).toStringAsFixed(1)}%' : '--'),
+                              _statItem('平均盈亏', _optimizationEngine.avgPnl != 0 ? '${(_optimizationEngine.avgPnl*100).toStringAsFixed(2)}%' : '--'),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('优化级别：${_optimizationEngine.getSuggestion().level}',
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue)),
+                                const SizedBox(height: 4),
+                                Text(_optimizationEngine.getSuggestion().message,
+                                    style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                                const SizedBox(height: 8),
+                                Text('建议盈亏比：${_optimizationEngine.getSuggestion().suggestedMinRiskReward.toStringAsFixed(1)}:1',
+                                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                Text('建议确认次数：${_optimizationEngine.getSuggestion().suggestedConfirmationCount}次',
+                                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            child: const Text('清除历史记录', style: TextStyle(color: Colors.red, fontSize: 12)),
+                            onPressed: () async {
+                              await _optimizationEngine.clearAll();
+                              setState(() {});
+                            },
+                          ),
+                        ],
+                      )
+                    : const Center(child: CircularProgressIndicator()),
+              ),
+            ),
+
+            const SizedBox(height: 24),
             _sectionTitle('系统状态'),
             Card(
               child: Column(
@@ -279,6 +343,16 @@ class _SettingsPageState extends State<SettingsPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 4),
       child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _statItem(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      ],
     );
   }
 
