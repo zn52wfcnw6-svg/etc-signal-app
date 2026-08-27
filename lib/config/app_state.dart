@@ -151,6 +151,11 @@ class AppState extends ChangeNotifier {
     // 始终更新长周期分析（即使冻结也显示市场结构和关键位）
     _longCycleResult = signalEngine.longCycle.analyze();
 
+    // 计算ETH/BTC强弱比（始终计算）
+    if (_ethPrice > 0 && _btcPrice > 0) {
+      _ethBtcRatio = _ethPrice / _btcPrice;
+    }
+
     // 如果冻结，不生成信号
     if (_freezeState?.isFrozen ?? false) {
       _statusMessage = '冻结中: ${_freezeState!.reasonText}';
@@ -160,11 +165,6 @@ class AppState extends ChangeNotifier {
 
     // 信号引擎
     await signalEngine.tick();
-
-    // 计算ETH/BTC强弱比
-    if (_ethPrice > 0 && _btcPrice > 0) {
-      _ethBtcRatio = _ethPrice / _btcPrice;
-    }
   }
 
   void _updateAppState() {

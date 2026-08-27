@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/app_state.dart';
 import '../models/signal.dart';
 import '../utils/constants.dart';
+import '../engine/long_cycle/long_cycle_manager.dart';
 
 class SignalPanel extends StatelessWidget {
   const SignalPanel({super.key});
@@ -17,7 +18,7 @@ class SignalPanel extends StatelessWidget {
 
         final signal = app.currentSignal;
         final isFrozen = app.freezeState?.isFrozen ?? false;
-        final longCycle = app.longCycleResult;
+        final LongCycleResult? longCycle = app.longCycleResult;
 
         return RefreshIndicator(
           onRefresh: () => app.manualRefresh(),
@@ -32,6 +33,7 @@ class SignalPanel extends StatelessWidget {
               if (longCycle != null) _keyLevelsCard(longCycle, app),
               const SizedBox(height: 16),
               _marketInfoCard(app, longCycle),
+              const SizedBox(height: 24),
             ],
           ),
         );
@@ -39,11 +41,10 @@ class SignalPanel extends StatelessWidget {
     );
   }
 
-  // === 市场分析卡片（无信号/冻结时显示）===
-  Widget _marketAnalysisCard(AppState app, dynamic longCycle, bool isFrozen) {
+  Widget _marketAnalysisCard(AppState app, LongCycleResult? longCycle, bool isFrozen) {
     final currentPrice = app.ethPrice;
-    String outlook = '';
-    String suggestion = '';
+    String outlook = '数据加载中...';
+    String suggestion = '正在获取K线和订单流数据，请稍候。';
     Color outlookColor = Colors.grey;
 
     if (longCycle != null) {
@@ -56,19 +57,19 @@ class SignalPanel extends StatelessWidget {
         outlookColor = Colors.orange;
       } else if (state == LongCycleState.supportValid) {
         outlook = '接近支撑区，关注多头机会';
-        suggestion = '价格进入支撑带，若出现流动性清扫+CVD底背离可考虑做多。止损设在支撑带下沿。';
+        suggestion = '价格进入支撑带，若出现流动性清扫+CVD底背离可考虑做多。';
         outlookColor = Colors.green;
       } else if (state == LongCycleState.resistanceValid) {
         outlook = '接近压力区，关注空头机会';
-        suggestion = '价格进入压力带，若出现流动性清扫+CVD顶背离可考虑做空。止损设在压力带上沿。';
+        suggestion = '价格进入压力带，若出现流动性清扫+CVD顶背离可考虑做空。';
         outlookColor = Colors.red;
       } else if (state == LongCycleState.trendExhaustion) {
         outlook = '趋势衰竭，反转概率上升';
-        suggestion = 'OI背离+资金费率极端，趋势可能反转。密切关注订单流变化，准备反向布局。';
+        suggestion = 'OI背离+资金费率极端，趋势可能反转，密切关注订单流变化。';
         outlookColor = Colors.purple;
       } else {
         outlook = '中性区间，无明确机会';
-        suggestion = '价格远离关键位，趋势结构未破。耐心等待价格进入支撑/压力区。';
+        suggestion = '价格远离关键位，耐心等待价格进入支撑/压力区。';
         outlookColor = Colors.grey;
       }
 
@@ -77,9 +78,6 @@ class SignalPanel extends StatelessWidget {
       } else if (structure == MarketStructure.downtrend) {
         suggestion += ' 大趋势向下，优先做空。';
       }
-    } else {
-      outlook = '数据加载中...';
-      suggestion = '正在获取K线和订单流数据，请稍候。';
     }
 
     return Card(
@@ -124,7 +122,8 @@ class SignalPanel extends StatelessWidget {
                 children: [
                   const Icon(Icons.circle, size: 8, color: Colors.blue),
                   const SizedBox(width: 6),
-                  Text('当前价: \$${currentPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13)),
+                  Text('当前价: \$${currentPrice.toStringAsFixed(2)}',
+                      style: const TextStyle(fontSize: 13)),
                 ],
               ),
           ],
@@ -133,10 +132,9 @@ class SignalPanel extends StatelessWidget {
     );
   }
 
-  // === 关键价位卡片 ===
-  Widget _keyLevelsCard(dynamic longCycle, AppState app) {
-    final supports = longCycle.supportLevels as List;
-    final resistances = longCycle.resistanceLevels as List;
+  Widget _keyLevelsCard(LongCycleResult longCycle, AppState app) {
+    final supports = longCycle.supportLevels;
+    final resistances = longCycle.resistanceLevels;
     final currentPrice = app.ethPrice;
 
     return Card(
@@ -148,54 +146,28 @@ class SignalPanel extends StatelessWidget {
           children: [
             const Text('关键价位 & 预估开仓区', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-
-            // 压力位
             const Text('压力位（做空目标区）', style: TextStyle(fontSize: 13, color: Colors.red, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             if (resistances.isEmpty)
-              const Text('暂无数据', style: TextStyle(fontSize: 12, color: Colors.grey))
+              const Text('计算中...', style: TextStyle(fontSize: 12, color: Colors.grey))
             else
-              ...resistances.take(2).map((level) => _levelRow(
-                    level.mid,
-                    level.strength,
-                    'resistance',
-                    currentPrice,
-                    level.lower,
-                    level.upper,
-                  )),
-
+              ...resistances.take(2).map((level) => _levelRow(level.mid, level.strength, 'resistance', currentPrice)),
             const Divider(height: 20),
-
-            // 当前价
             Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
+                decoration: BoxDecoration(color: Colors.blue.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
                 child: Text('当前价 \$${currentPrice.toStringAsFixed(2)}',
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue)),
               ),
             ),
-
             const Divider(height: 20),
-
-            // 支撑位
             const Text('支撑位（做多目标区）', style: TextStyle(fontSize: 13, color: Colors.green, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             if (supports.isEmpty)
-              const Text('暂无数据', style: TextStyle(fontSize: 12, color: Colors.grey))
+              const Text('计算中...', style: TextStyle(fontSize: 12, color: Colors.grey))
             else
-              ...supports.take(2).map((level) => _levelRow(
-                    level.mid,
-                    level.strength,
-                    'support',
-                    currentPrice,
-                    level.lower,
-                    level.upper,
-                  )),
-
+              ...supports.take(2).map((level) => _levelRow(level.mid, level.strength, 'support', currentPrice)),
             const SizedBox(height: 12),
             const Text('预估开仓策略', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
@@ -206,7 +178,7 @@ class SignalPanel extends StatelessWidget {
     );
   }
 
-  Widget _levelRow(double price, int strength, String type, double currentPrice, double lower, double upper) {
+  Widget _levelRow(double price, int strength, String type, double currentPrice) {
     final color = type == 'support' ? Colors.green : Colors.red;
     final distance = currentPrice > 0 ? ((price - currentPrice).abs() / currentPrice * 100) : 0;
     final stars = '★' * strength + '☆' * (3 - strength);
@@ -219,41 +191,37 @@ class SignalPanel extends StatelessWidget {
           const SizedBox(width: 6),
           Text('\$${price.toStringAsFixed(2)}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: color)),
           const SizedBox(width: 8),
-          Text(stars, style: TextStyle(fontSize: 12, color: Colors.amber)),
+          Text(stars, style: const TextStyle(fontSize: 12, color: Colors.amber)),
           const Spacer(),
           Text('${distance.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          const SizedBox(width: 8),
-          Text('区间 \$${lower.toStringAsFixed(2)}-${upper.toStringAsFixed(2)}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
         ],
       ),
     );
   }
 
-  Widget _strategyHint(dynamic longCycle, double currentPrice) {
+  Widget _strategyHint(LongCycleResult longCycle, double currentPrice) {
     final state = longCycle.state;
     final support = longCycle.nearestSupport;
     final resistance = longCycle.nearestResistance;
 
     if (state == LongCycleState.supportValid && support != null) {
       return Text(
-        '若价格回落至 \$${support.lower.toStringAsFixed(2)}-${support.upper.toStringAsFixed(2)} 区间，且出现流动性清扫+订单流反转，可考虑分批做多。止损 \$${(support.lower * 0.99).toStringAsFixed(2)}，目标看最近压力位。',
+        '若价格回落至 \$${support.lower.toStringAsFixed(2)}-${support.upper.toStringAsFixed(2)} 区间，且出现流动性清扫+订单流反转，可考虑分批做多。止损 \$${(support.lower * 0.99).toStringAsFixed(2)}。',
         style: const TextStyle(fontSize: 12, height: 1.4, color: Colors.white70),
       );
     } else if (state == LongCycleState.resistanceValid && resistance != null) {
       return Text(
-        '若价格反弹至 \$${resistance.lower.toStringAsFixed(2)}-${resistance.upper.toStringAsFixed(2)} 区间，且出现流动性清扫+订单流反转，可考虑分批做空。止损 \$${(resistance.upper * 1.01).toStringAsFixed(2)}，目标看最近支撑位。',
+        '若价格反弹至 \$${resistance.lower.toStringAsFixed(2)}-${resistance.upper.toStringAsFixed(2)} 区间，且出现流动性清扫+订单流反转，可考虑分批做空。止损 \$${(resistance.upper * 1.01).toStringAsFixed(2)}。',
         style: const TextStyle(fontSize: 12, height: 1.4, color: Colors.white70),
       );
-    } else {
-      return const Text(
-        '当前价格远离关键位，建议观望。等待价格接近支撑或压力区后再评估入场机会。',
-        style: TextStyle(fontSize: 12, height: 1.4, color: Colors.white70),
-      );
     }
+    return const Text(
+      '当前价格远离关键位，建议观望。等待价格接近支撑或压力区后再评估入场机会。',
+      style: TextStyle(fontSize: 12, height: 1.4, color: Colors.white70),
+    );
   }
 
-  // === 市场结构信息卡片 ===
-  Widget _marketInfoCard(AppState app, dynamic longCycle) {
+  Widget _marketInfoCard(AppState app, LongCycleResult? longCycle) {
     return Card(
       elevation: 2,
       child: Padding(
@@ -263,22 +231,19 @@ class SignalPanel extends StatelessWidget {
           children: [
             const Text('市场结构', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            _infoRow('长周期状态', longCycle?.state?.name ?? '加载中'),
-            _infoRow('市场结构', longCycle?.structure?.structure?.name ?? '-'),
-            _infoRow('结构描述', longCycle?.structure?.description ?? '-'),
-            _infoRow('波动率', longCycle?.volatility?.state ?? '-'),
-            _infoRow('ATR', longCycle?.volatility?.atrValue != null ? '\$${longCycle.volatility.atrValue.toStringAsFixed(3)}' : '-'),
-            _infoRow('资金费率状态', longCycle?.fundingState ?? '-'),
-            _infoRow('OI背离', longCycle?.hasOIDivergence == true ? '是 ⚠️' : '否'),
-            if (app.signalStatus['confirmationCount'] != null && app.signalStatus['confirmationCount'] > 0)
-              _infoRow('信号确认', '${app.signalStatus['pendingDirection']} ${app.signalStatus['confirmationCount']}/${AppConstants.confirmationPolls}'),
+            _infoRow('长周期状态', longCycle?.state.name ?? '加载中'),
+            _infoRow('市场结构', longCycle?.structure.structure.name ?? '-'),
+            _infoRow('结构描述', longCycle?.structure.description ?? '-'),
+            _infoRow('波动率', longCycle?.volatility.state ?? '-'),
+            _infoRow('ATR', longCycle != null ? '\$${longCycle.volatility.atrValue.toStringAsFixed(3)}' : '-'),
+            _infoRow('资金费率', longCycle?.fundingState ?? '-'),
+            _infoRow('OI背离', (longCycle?.hasOIDivergence ?? false) ? '是 ⚠️' : '否'),
           ],
         ),
       ),
     );
   }
 
-  // === 有信号时的信号卡片 ===
   Widget _signalCard(TradingSignal signal, AppState app) {
     final isLong = signal.direction == SignalDirection.long;
     final color = isLong ? Colors.green : Colors.red;
@@ -321,7 +286,6 @@ class SignalPanel extends StatelessWidget {
             _infoRow('建议仓位', '${suggestedSize.toStringAsFixed(4)} 张'),
             _infoRow('单笔风险', '1% 账户净值'),
             _infoRow('市场环境', '${signal.marketRegime} / ${signal.volatilityState}'),
-            _infoRow('资金费率', '${(signal.fundingRateAtSignal * 100).toStringAsFixed(4)}%'),
             const SizedBox(height: 16),
             Row(
               children: [
