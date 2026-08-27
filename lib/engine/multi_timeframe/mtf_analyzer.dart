@@ -1,51 +1,58 @@
 import '../../models/market_data.dart';
 import '../../utils/constants.dart';
 import '../long_cycle/structure_analyzer.dart';
-import '../market_regime/market_regime.dart';
-import '../adaptive/adaptive_params.dart';
+/// 单个周期分析
+class TimeframeResult {
+  final String timeframe;
+  final MarketStructure structure;
+  final bool bullish;
+  final bool bearish;
+  final double trendStrength;
+  final String description;
 
-/// 单周期方向
-enum TimeframeBias { bullish, bearish, neutral }
+  TimeframeResult({
+    required this.timeframe,
+    required this.structure,
+    required this.bullish,
+    required this.bearish,
+    required this.trendStrength,
+    required this.description,
+  });
+}
 
-/// 多周期分析结果
+/// 多周期共振结果
 class MultiTimeframeResult {
-  final TimeframeBias bias1d;
-  final TimeframeBias bias4h;
-  final TimeframeBias bias1h;
-  final TimeframeBias bias5m;
-  final TimeframeBias bias1m;
+  final List<TimeframeResult> timeframes;
   final int bullishCount;
   final int bearishCount;
   final int neutralCount;
-  final bool isBullishResonance; // 至少3个周期看多
-  final bool isBearishResonance; // 至少3个周期看空
   final String description;
 
   MultiTimeframeResult({
-    required this.bias1d,
-    required this.bias4h,
-    required this.bias1h,
-    required this.bias5m,
-    required this.bias1m,
+    required this.timeframes,
     required this.bullishCount,
     required this.bearishCount,
     required this.neutralCount,
-    required this.isBullishResonance,
-    required this.isBearishResonance,
     required this.description,
   });
 
-  /// 获取指定方向的共振强度 0-5
+  /// 共振强度评分（0-5），isLong=true计算多头共振
   int resonanceStrength(bool isLong) {
-    final biases = [bias1d, bias4h, bias1h, bias5m, bias1m];
-    final target = isLong ? TimeframeBias.bullish : TimeframeBias.bearish;
-    return biases.where((b) => b == target).length;
+    int score = 0;
+    final weights = [3, 2, 1, 1, 1]; // 1D权重最高
+    for (int i = 0; i < timeframes.length && i < weights.length; i++) {
+      if (isLong && timeframes[i].bullish) score += weights[i];
+      if (!isLong && timeframes[i].bearish) score += weights[i];
+    }
+    return score;
   }
+
+  bool get longResonance => resonanceStrength(true) >= 3;
+  bool get shortResonance => resonanceStrength(false) >= 3;
 }
 
 /// 多周期共振分析器
 class MultiTimeframeAnalyzer {
-  /// 分析五个周期的方向共振
   static MultiTimeframeResult analyze({
     required List<Kline> k1d,
     required List<Kline> k4h,
@@ -53,84 +60,74 @@ class MultiTimeframeAnalyzer {
     required List<Kline> k5m,
     required List<Kline> k1m,
   }) {
-    final bias1d = _analyzeTimeframe(k1d);
-    final bias4h = _analyzeTimeframe(k4h);
-    final bias1h = _analyzeTimeframe(k1h);
-    final bias5m = _analyzeTimeframe(k5m);
-    final bias1m = _analyzeTimeframe(k1m);
+    final analyses = [
+      _analyze('1D', k1d),
+      _analyze('4H', k4h),
+      _analyze('1H', k1h),
+      _analyze('5m', k5m),
+      _analyze('1m', k1m),
+    ];
 
-    final biases = [bias1d, bias4h, bias1h, bias5m, bias1m];
-    final bullishCount = biases.where((b) => b == TimeframeBias.bullish).length;
-    final bearishCount = biases.where((b) => b == TimeframeBias.bearish).length;
-    final neutralCount = biases.where((b) => b == TimeframeBias.neutral).length;
-
-    // 至少3个周期同向才算共振
-    final isBullish = bullishCount >= 3;
-    final isBearish = bearishCount >= 3;
-
-    String desc;
-    if (isBullish) {
-      desc = '$bullishCount周期看多共振（1D:${_label(bias1d)} 4H:${_label(bias4h)} 1H:${_label(bias1h)} 5m:${_label(bias5m)} 1m:${_label(bias1m)}）';
-    } else if (isBearish) {
-      desc = '$bearishCount周期看空共振（1D:${_label(bias1d)} 4H:${_label(bias4h)} 1H:${_label(bias1h)} 5m:${_label(bias5m)} 1m:${_label(bias1m)}）';
-    } else {
-      desc = '周期分歧，无共振（多$bullishCount/空$bearishCount/中性$neutralCount）';
+    int bullish = 0, bearish = 0, neutral = 0;
+    for (final a in analyses) {
+      if (a.bullish) bullish++;
+      else if (a.bearish) bearish++;
+      else neutral++;
     }
 
+    String desc;
+    if (bullish >= 4) desc = '强多头共振：$bullish/5周期看多';
+    else if (bearish >= 4) desc = '强空头共振：$bearish/5周期看空';
+    else if (bullish > bearish) desc = '偏多：$bullish多/$bearish空/$neutral中性';
+    else if (bearish > bullish) desc = '偏空：$bullish多/$bearish空/$neutral中性';
+    else desc = '多空分歧：$bullish多/$bearish空';
+
     return MultiTimeframeResult(
-      bias1d: bias1d,
-      bias4h: bias4h,
-      bias1h: bias1h,
-      bias5m: bias5m,
-      bias1m: bias1m,
-      bullishCount: bullishCount,
-      bearishCount: bearishCount,
-      neutralCount: neutralCount,
-      isBullishResonance: isBullish,
-      isBearishResonance: isBearish,
+      timeframes: analyses,
+      bullishCount: bullish,
+      bearishCount: bearish,
+      neutralCount: neutral,
       description: desc,
     );
   }
 
-  /// 分析单个周期的方向
-  static TimeframeBias _analyzeTimeframe(List<Kline> klines) {
-    if (klines.length < 20) return TimeframeBias.neutral;
-
-    final structure = StructureAnalyzer.analyze(klines);
-    final currentPrice = klines.last.close;
-
-    // 用EMA20判断短期方向
-    final ema20 = _ema(klines.map((k) => k.close).toList(), 20);
-
-    if (structure.structure == MarketStructure.uptrend && currentPrice > ema20) {
-      return TimeframeBias.bullish;
-    }
-    if (structure.structure == MarketStructure.downtrend && currentPrice < ema20) {
-      return TimeframeBias.bearish;
+  static TimeframeResult _analyze(String tf, List<Kline> klines) {
+    if (klines.length < 10) {
+      return TimeframeResult(
+        timeframe: tf, structure: MarketStructure.ranging,
+        bullish: false, bearish: false, trendStrength: 0,
+        description: '$tf 数据不足',
+      );
     }
 
-    // 结构震荡时，用价格与EMA关系判断
-    if (currentPrice > ema20 * 1.002) return TimeframeBias.bullish;
-    if (currentPrice < ema20 * 0.998) return TimeframeBias.bearish;
+    final structure = StructureAnalyzer.analyze(klines, lookback: 2);
+    final closes = klines.map((k) => k.close).toList();
+    final sma5 = closes.length >= 5
+        ? closes.sublist(closes.length - 5).reduce((a, b) => a + b) / 5
+        : closes.last;
 
-    return TimeframeBias.neutral;
-  }
+    bool bullish = false;
+    bool bearish = false;
 
-  static double _ema(List<double> prices, int period) {
-    if (prices.length < period) return prices.last;
-    final k = 2 / (period + 1);
-    double ema = prices.sublist(0, period).reduce((a, b) => a + b) / period;
-    for (int i = period; i < prices.length; i++) {
-      ema = prices[i] * k + ema * (1 - k);
+    if (structure.structure == MarketStructure.uptrend) {
+      bullish = true;
+    } else if (structure.structure == MarketStructure.downtrend) {
+      bearish = true;
+    } else if (structure.isCHoCH) {
+      bullish = closes.last > closes[closes.length - 5.clamp(0, closes.length - 1)];
+      bearish = !bullish;
+    } else {
+      bullish = closes.last > sma5;
+      bearish = closes.last < sma5;
     }
-    return ema;
-  }
 
-  static String _label(TimeframeBias b) {
-    switch (b) {
-      case TimeframeBias.bullish: return '多';
-      case TimeframeBias.bearish: return '空';
-      case TimeframeBias.neutral: return '中';
-    }
+    return TimeframeResult(
+      timeframe: tf,
+      structure: structure.structure,
+      bullish: bullish,
+      bearish: bearish,
+      trendStrength: structure.isBOS ? 0.8 : 0.5,
+      description: '$tf ${structure.structure.name}',
+    );
   }
 }

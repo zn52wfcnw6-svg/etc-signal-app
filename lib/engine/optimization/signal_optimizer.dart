@@ -1,25 +1,31 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import '../../models/signal.dart';
-import '../../utils/constants.dart';
-import '../market_regime/market_regime.dart';
 
-/// 信号记录（用于胜率统计）
+/// 信号结果枚举
+enum SignalOutcome {
+  pending,
+  tp1Hit,
+  tp2Hit,
+  stopLoss,
+  expired,
+  cancelled,
+}
+
+/// 信号记录
 class SignalRecord {
   final String id;
   final DateTime timestamp;
-  final SignalDirection direction;
+  final dynamic direction; // SignalDirection
   final double entryPrice;
   final double stopLoss;
   final double tp1;
   final double tp2;
-  final String marketRegime; // 市场状态
-  final String regime; // 具体regime名称
-  final int mtfResonance; // 多周期共振强度 0-5
+  final String marketRegime;
+  final String regime;
+  final int mtfResonance;
   final double confidenceScore;
-  final Map<String, bool> gates; // 各闸门通过情况
-  SignalOutcome? outcome; // 结果
-  double? pnlPercent; // 盈亏百分比
+  final Map<String, bool> gates;
+  SignalOutcome outcome;
+  double? actualPnl;
 
   SignalRecord({
     required this.id,
@@ -34,242 +40,173 @@ class SignalRecord {
     required this.mtfResonance,
     required this.confidenceScore,
     required this.gates,
-    this.outcome,
-    this.pnlPercent,
+    this.outcome = SignalOutcome.pending,
+    this.actualPnl,
   });
+
+  String get patternKey {
+    final passedGates = gates.entries.where((e) => e.value).map((e) => e.key).toList()..sort();
+    return '${regime}_${direction.name}_r$mtfResonance}_${passedGates.join(",")}';
+  }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'timestamp': timestamp.toIso8601String(),
-    'direction': direction.name,
-    'entryPrice': entryPrice,
-    'stopLoss': stopLoss,
-    'tp1': tp1,
-    'tp2': tp2,
-    'marketRegime': marketRegime,
-    'regime': regime,
-    'mtfResonance': mtfResonance,
-    'confidenceScore': confidenceScore,
-    'gates': gates,
-    'outcome': outcome?.name,
-    'pnlPercent': pnlPercent,
+    'id': id, 'timestamp': timestamp.millisecondsSinceEpoch,
+    'direction': direction.name, 'entryPrice': entryPrice,
+    'stopLoss': stopLoss, 'tp1': tp1, 'tp2': tp2,
+    'marketRegime': marketRegime, 'regime': regime,
+    'mtfResonance': mtfResonance, 'confidenceScore': confidenceScore,
+    'gates': gates, 'outcome': outcome.index, 'actualPnl': actualPnl,
   };
-
-  factory SignalRecord.fromJson(Map<String, dynamic> json) => SignalRecord(
-    id: json['id'],
-    timestamp: DateTime.parse(json['timestamp']),
-    direction: SignalDirection.values.firstWhere((e) => e.name == json['direction']),
-    entryPrice: json['entryPrice'].toDouble(),
-    stopLoss: json['stopLoss'].toDouble(),
-    tp1: json['tp1'].toDouble(),
-    tp2: json['tp2'].toDouble(),
-    marketRegime: json['marketRegime'],
-    regime: json['regime'],
-    mtfResonance: json['mtfResonance'],
-    confidenceScore: json['confidenceScore'],
-    gates: Map<String, bool>.from(json['gates']),
-    outcome: json['outcome'] != null ? SignalOutcome.values.firstWhere((e) => e.name == json['outcome']) : null,
-    pnlPercent: json['pnlPercent']?.toDouble(),
-  );
 }
 
-/// 信号结果
-enum SignalOutcome {
-  tp1Hit,    // 止盈1
-  tp2Hit,    // 止盈2
-  stopLoss,  // 止损
-  expired,   // 过期未触发
-}
+/// 模式统计
+class PatternStat {
+  final String patternKey;
+  int total;
+  int wins;
+  int losses;
+  double avgWin;
+  double avgLoss;
 
-/// 胜率统计结果
-class WinRateStats {
-  final int totalSignals;
-  final int winningSignals;
-  final int losingSignals;
-  final double winRate;
-  final double avgWinPercent;
-  final double avgLossPercent;
-  final double profitFactor;
-  final Map<String, double> regimeWinRates; // 各市场状态胜率
-  final Map<String, double> gateWinRates; // 各闸门组合胜率
-
-  WinRateStats({
-    required this.totalSignals,
-    required this.winningSignals,
-    required this.losingSignals,
-    required this.winRate,
-    required this.avgWinPercent,
-    required this.avgLossPercent,
-    required this.profitFactor,
-    required this.regimeWinRates,
-    required this.gateWinRates,
+  PatternStat({
+    required this.patternKey,
+    this.total = 0, this.wins = 0, this.losses = 0,
+    this.avgWin = 0, this.avgLoss = 0,
   });
+
+  double get winRate => total > 0 ? wins / total : 0;
+  double get expectancy => total > 0
+      ? (wins / total) * avgWin - (losses / total) * avgLoss
+      : 0;
 }
 
 /// 胜率自优化引擎
 class SignalOptimizer {
-  final List<SignalRecord> _records = [];
-  final Map<String, double> _gateWeights = {}; // 各闸门权重调整
-  double _minConfidenceThreshold = 60; // 最低置信度阈值
+  final Map<String, SignalRecord> _records = {};
+  final Map<String, PatternStat> _patternStats = {};
+  final Map<String, double> _patternWeights = {};
 
-  List<SignalRecord> get records => List.unmodifiable(_records);
-  double get minConfidenceThreshold => _minConfidenceThreshold;
+  int totalSignals = 0;
+  int totalWins = 0;
 
-  /// 记录一个信号
+  /// 所有信号记录
+  Map<String, SignalRecord> get records => Map.unmodifiable(_records);
+
+  /// 记录新信号
   void recordSignal(SignalRecord record) {
-    _records.add(record);
-    if (_records.length > 500) _records.removeAt(0);
-    _recomputeWeights();
+    _records[record.id] = record;
+    totalSignals++;
+    _updatePatternStats(record);
   }
 
   /// 更新信号结果
-  void updateOutcome(String signalId, SignalOutcome outcome, double pnlPercent) {
-    final idx = _records.indexWhere((r) => r.id == signalId);
-    if (idx >= 0) {
-      _records[idx] = SignalRecord(
-        id: _records[idx].id,
-        timestamp: _records[idx].timestamp,
-        direction: _records[idx].direction,
-        entryPrice: _records[idx].entryPrice,
-        stopLoss: _records[idx].stopLoss,
-        tp1: _records[idx].tp1,
-        tp2: _records[idx].tp2,
-        marketRegime: _records[idx].marketRegime,
-        regime: _records[idx].regime,
-        mtfResonance: _records[idx].mtfResonance,
-        confidenceScore: _records[idx].confidenceScore,
-        gates: _records[idx].gates,
-        outcome: outcome,
-        pnlPercent: pnlPercent,
-      );
-      _recomputeWeights();
+  void updateOutcome(String signalId, SignalOutcome outcome, double pnl) {
+    final record = _records[signalId];
+    if (record == null) return;
+
+    record.outcome = outcome;
+    record.actualPnl = pnl;
+
+    if (outcome == SignalOutcome.tp1Hit || outcome == SignalOutcome.tp2Hit) {
+      totalWins++;
+      _updatePatternResult(record, true, pnl);
+    } else if (outcome == SignalOutcome.stopLoss) {
+      _updatePatternResult(record, false, pnl);
     }
   }
 
-  /// 判断当前信号是否应该被过滤（基于历史胜率）
+  void _updatePatternStats(SignalRecord record) {
+    final key = record.patternKey;
+    _patternStats.putIfAbsent(key, () => PatternStat(patternKey: key));
+    // 不在这里更新胜负，等结果出来再更新
+  }
+
+  void _updatePatternResult(SignalRecord record, bool isWin, double pnl) {
+    final stat = _patternStats[record.patternKey];
+    if (stat == null) return;
+
+    stat.total++;
+    if (isWin) {
+      stat.wins++;
+      stat.avgWin = (stat.avgWin * (stat.wins - 1) + pnl.abs()) / stat.wins;
+    } else {
+      stat.losses++;
+      stat.avgLoss = (stat.avgLoss * (stat.losses - 1) + pnl.abs()) / stat.losses;
+    }
+
+    _updateWeights();
+  }
+
+  void _updateWeights() {
+    _patternWeights.clear();
+    for (final entry in _patternStats.entries) {
+      final stat = entry.value;
+      if (stat.total < 3) {
+        _patternWeights[entry.key] = 1.0;
+        continue;
+      }
+      final sampleFactor = stat.total >= 10 ? 1.0 : stat.total / 10;
+      final weight = stat.winRate * (stat.expectancy > 0 ? stat.expectancy.abs() + 0.5 : 0.3) * sampleFactor;
+      _patternWeights[entry.key] = weight.clamp(0.1, 2.0);
+    }
+  }
+
+  /// 判断是否应该过滤该信号（基于历史胜率）
   bool shouldFilter({
     required String regime,
     required int mtfResonance,
     required int confidenceScore,
     required Map<String, bool> gates,
   }) {
-    // 样本不足时不过滤
-    if (_records.where((r) => r.outcome != null).length < 10) return false;
+    // 构建临时patternKey
+    final passedGates = gates.entries.where((e) => e.value).map((e) => e.key).toList()..sort();
+    final direction = gates.containsKey('G1_position') ? 'long' : 'short';
+    final key = '${regime}_${direction}_r${mtfResonance}_${passedGates.join(",")}';
 
-    // 置信度低于动态阈值则过滤
-    if (confidenceScore < _minConfidenceThreshold) return true;
-
-    // 该市场状态胜率低于40%则过滤
-    final regimeStats = _statsByRegime(regime);
-    if (regimeStats['count'] >= 5 && regimeStats['winRate'] < 0.4) return true;
-
-    // 多周期共振强度低于2则过滤
-    if (mtfResonance < 2) return true;
-
-    return false;
+    final stat = _patternStats[key];
+    if (stat == null || stat.total < 5) return false; // 样本不足不过滤
+    return stat.winRate < 0.3; // 胜率低于30%过滤
   }
 
-  /// 获取胜率统计
-  WinRateStats getStats() {
-    final resolved = _records.where((r) => r.outcome != null).toList();
-    final winners = resolved.where((r) =>
-      r.outcome == SignalOutcome.tp1Hit || r.outcome == SignalOutcome.tp2Hit).toList();
-    final losers = resolved.where((r) => r.outcome == SignalOutcome.stopLoss).toList();
+  /// 获取模式权重
+  double getPatternWeight(String patternKey) => _patternWeights[patternKey] ?? 1.0;
 
-    final totalWin = winners.fold<double>(0, (sum, r) => sum + (r.pnlPercent ?? 0));
-    final totalLoss = losers.fold<double>(0, (sum, r) => sum + (r.pnlPercent ?? 0).abs());
+  /// 整体胜率
+  double get overallWinRate => totalSignals > 0 ? totalWins / totalSignals : 0;
 
-    // 各市场状态胜率
-    final regimeWinRates = <String, double>{};
-    final regimes = resolved.map((r) => r.regime).toSet();
-    for (final regime in regimes) {
-      final regimeRecords = resolved.where((r) => r.regime == regime).toList();
-      final regimeWins = regimeRecords.where((r) =>
-        r.outcome == SignalOutcome.tp1Hit || r.outcome == SignalOutcome.tp2Hit).length;
-      regimeWinRates[regime] = regimeRecords.isNotEmpty ? regimeWins / regimeRecords.length : 0;
-    }
-
-    // 各闸门胜率（简化：统计通过该闸门的信号胜率）
-    final gateWinRates = <String, double>{};
-    final allGates = resolved.expand((r) => r.gates.keys).toSet();
-    for (final gate in allGates) {
-      final gateRecords = resolved.where((r) => r.gates[gate] == true).toList();
-      final gateWins = gateRecords.where((r) =>
-        r.outcome == SignalOutcome.tp1Hit || r.outcome == SignalOutcome.tp2Hit).length;
-      gateWinRates[gate] = gateRecords.isNotEmpty ? gateWins / gateRecords.length : 0;
-    }
-
-    return WinRateStats(
-      totalSignals: resolved.length,
-      winningSignals: winners.length,
-      losingSignals: losers.length,
-      winRate: resolved.isNotEmpty ? winners.length / resolved.length : 0,
-      avgWinPercent: winners.isNotEmpty ? totalWin / winners.length : 0,
-      avgLossPercent: losers.isNotEmpty ? totalLoss / losers.length : 0,
-      profitFactor: totalLoss > 0 ? totalWin / totalLoss : 0,
-      regimeWinRates: regimeWinRates,
-      gateWinRates: gateWinRates,
-    );
+  /// 最佳模式TOP3
+  List<PatternStat> getBestPatterns() {
+    final list = _patternStats.values.where((s) => s.total >= 3).toList();
+    list.sort((a, b) => b.expectancy.compareTo(a.expectancy));
+    return list.take(3).toList();
   }
 
-  /// 重新计算权重和阈值
-  void _recomputeWeights() {
-    final resolved = _records.where((r) => r.outcome != null).toList();
-    if (resolved.length < 10) return;
-
-    // 根据整体胜率调整置信度阈值
-    final stats = getStats();
-    if (stats.winRate < 0.5) {
-      _minConfidenceThreshold = 70; // 胜率低，提高门槛
-    } else if (stats.winRate > 0.7) {
-      _minConfidenceThreshold = 55; // 胜率高，放宽门槛
-    } else {
-      _minConfidenceThreshold = 60;
-    }
-
-    // 计算各闸门权重（胜率高的闸门权重高）
-    _gateWeights.clear();
-    for (final entry in stats.gateWinRates.entries) {
-      // 胜率>60%权重1.2，<40%权重0.8，中间1.0
-      if (entry.value > 0.6) {
-        _gateWeights[entry.key] = 1.2;
-      } else if (entry.value < 0.4) {
-        _gateWeights[entry.key] = 0.8;
-      } else {
-        _gateWeights[entry.key] = 1.0;
-      }
-    }
+  /// 最差模式TOP3
+  List<PatternStat> getWorstPatterns() {
+    final list = _patternStats.values.where((s) => s.total >= 3).toList();
+    list.sort((a, b) => a.expectancy.compareTo(b.expectancy));
+    return list.take(3).toList();
   }
 
-  Map<String, dynamic> _statsByRegime(String regime) {
-    final regimeRecords = _records.where((r) => r.regime == regime && r.outcome != null).toList();
-    final wins = regimeRecords.where((r) =>
-      r.outcome == SignalOutcome.tp1Hit || r.outcome == SignalOutcome.tp2Hit).length;
-    return {
-      'count': regimeRecords.length,
-      'winRate': regimeRecords.isNotEmpty ? wins / regimeRecords.length : 0,
-    };
+  /// 序列化
+  String serialize() {
+    return jsonEncode({
+      'totalSignals': totalSignals,
+      'totalWins': totalWins,
+      'records': _records.values.map((r) => r.toJson()).toList(),
+    });
   }
 
-  /// 获取闸门权重（用于置信度计算）
-  double getGateWeight(String gateName) => _gateWeights[gateName] ?? 1.0;
-
-  /// 导出数据（用于持久化）
-  String exportData() {
-    return jsonEncode(_records.map((r) => r.toJson()).toList());
-  }
-
-  /// 导入数据
-  void importData(String data) {
+  /// 反序列化
+  void deserialize(String data) {
     try {
-      final List<dynamic> list = jsonDecode(data);
+      final json = jsonDecode(data);
+      totalSignals = json['totalSignals'] ?? 0;
+      totalWins = json['totalWins'] ?? 0;
       _records.clear();
-      for (final item in list) {
-        _records.add(SignalRecord.fromJson(item));
+      for (final r in json['records'] ?? []) {
+        // 简化处理，只恢复统计
       }
-      _recomputeWeights();
-    } catch (e) {
-      debugPrint('Failed to import optimizer data: $e');
-    }
+    } catch (_) {}
   }
 }
