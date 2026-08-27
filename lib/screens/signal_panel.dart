@@ -7,6 +7,7 @@ import '../engine/long_cycle/long_cycle_manager.dart';
 import '../engine/risk/risk_manager.dart';
 import '../models/trade_recommendation.dart';
 import '../widgets/kline_chart.dart';
+import '../widgets/order_flow_visualization.dart';
 
 class SignalPanel extends StatelessWidget {
   const SignalPanel({super.key});
