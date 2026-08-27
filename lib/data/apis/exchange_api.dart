@@ -6,10 +6,6 @@ import '../../utils/constants.dart';
 
 /// CORS代理：Web版通过代理访问交易所API
 String _proxy(String url) {
-  // OKX公开API支持CORS，直接请求，不通过代理
-  if (url.contains('okx.com')) {
-    return url;
-  }
   if (kIsWeb) {
     return 'https://corsproxy.io/?url=${Uri.encodeComponent(url)}';
   }

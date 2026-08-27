@@ -36,14 +36,14 @@ class MarketDataManager {
   Future<void> _preloadKlines() async {
     // 串行加载，避免CORS代理限流
     final tasks = [
-      ('eth', '1m', 50),
-      ('eth', '5m', 50),
-      ('eth', '1h', 50),
-      ('eth', '4h', 50),
-      ('eth', '1d', 50),
-      ('btc', '5m', 30),
-      ('btc', '15m', 30),
-      ('btc', '4h', 50),
+      ('eth', '1m', 20),
+      ('eth', '5m', 20),
+      ('eth', '1h', 20),
+      ('eth', '4h', 20),
+      ('eth', '1d', 20),
+      ('btc', '5m', 20),
+      ('btc', '15m', 20),
+      ('btc', '4h', 20),
     ];
     for (final t in tasks) {
       final symbol = t.$1 == 'eth' ? AppConstants.ethSymbol : AppConstants.btcSymbol;
@@ -113,16 +113,16 @@ class MarketDataManager {
       _pollCount++;
       if (_pollCount % 5 == 0) {
         if (!_hasEnoughKlines(AppConstants.ethSymbol, '4h', 10)) {
-          await _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 100);
+          await _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 30);
         }
         if (!_hasEnoughKlines(AppConstants.ethSymbol, '1d', 10)) {
-          await _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 100);
+          await _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 30);
         }
         if (!_hasEnoughKlines(AppConstants.ethSymbol, '1h', 10)) {
-          await _fetchAndCacheKlines(AppConstants.ethSymbol, '1h', 100);
+          await _fetchAndCacheKlines(AppConstants.ethSymbol, '1h', 30);
         }
         if (!_hasEnoughKlines(AppConstants.btcSymbol, '4h', 10)) {
-          await _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 100);
+          await _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 30);
         }
       }
     } catch (e) {
