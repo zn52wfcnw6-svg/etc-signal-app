@@ -94,8 +94,10 @@ class AppState extends ChangeNotifier {
     });
 
     _isInitialized = true;
-    _statusMessage = '初始化完成，等待启动';
+    _statusMessage = '初始化完成，自动启动';
     notifyListeners();
+    // 自动启动
+    start();
   }
 
   void _registerHealthChecks() {
