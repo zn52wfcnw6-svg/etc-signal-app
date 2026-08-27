@@ -6,8 +6,8 @@ class AppConstants {
   static const int maxApiRetries = 2;
 
   // 交易所配置
-  static const List<String> exchanges = ['binance', 'okx', 'bybit', 'bitget', 'gate'];
-  static const List<String> orderFlowExchanges = ['binance', 'okx'];
+  static const List<String> exchanges = ['okx', 'binance', 'bybit', 'bitget', 'gate'];
+  static const List<String> orderFlowExchanges = ['okx', 'binance'];
 
   // 交易对
   static const String ethSymbol = 'ETHUSDT';
