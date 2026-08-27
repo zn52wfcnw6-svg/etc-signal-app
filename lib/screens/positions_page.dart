@@ -4,9 +4,14 @@ import '../config/app_state.dart';
 import '../models/position.dart';
 import '../utils/constants.dart';
 
-class PositionsPage extends StatelessWidget {
+class PositionsPage extends StatefulWidget {
   const PositionsPage({super.key});
 
+  @override
+  State<PositionsPage> createState() => _PositionsPageState();
+}
+
+class _PositionsPageState extends State<PositionsPage> {
   @override
   Widget build(BuildContext context) {
     return Consumer<AppState>(
@@ -15,9 +20,23 @@ class PositionsPage extends StatelessWidget {
         return Column(
           children: [
             _summaryCard(app),
+            // 添加持仓按钮
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('手动记录持仓'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
+                  onPressed: () => _showAddPositionDialog(app),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             Expanded(
               child: positions.isEmpty
-                  ? const Center(child: Text('暂无持仓', style: TextStyle(color: Colors.grey)))
+                  ? const Center(child: Text('暂无持仓，点击上方按钮手动记录', style: TextStyle(color: Colors.grey)))
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
                       itemCount: positions.length,
@@ -27,6 +46,70 @@ class PositionsPage extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  void _showAddPositionDialog(AppState app) {
+    final directionController = TextEditingController(text: 'long');
+    final entryController = TextEditingController(text: app.ethPrice.toStringAsFixed(2));
+    final slController = TextEditingController();
+    final tp1Controller = TextEditingController();
+    final tp2Controller = TextEditingController();
+    final qtyController = TextEditingController(text: '0.1');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey.shade900,
+        title: const Text('手动记录持仓', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: directionController.text,
+                decoration: const InputDecoration(labelText: '方向', labelStyle: TextStyle(color: Colors.grey)),
+                dropdownColor: Colors.grey.shade800,
+                style: const TextStyle(color: Colors.white),
+                items: const [
+                  DropdownMenuItem(value: 'long', child: Text('做多')),
+                  DropdownMenuItem(value: 'short', child: Text('做空')),
+                ],
+                onChanged: (v) => directionController.text = v ?? 'long',
+              ),
+              TextField(controller: entryController, decoration: const InputDecoration(labelText: '开仓价', labelStyle: TextStyle(color: Colors.grey)), style: const TextStyle(color: Colors.white), keyboardType: TextInputType.number),
+              TextField(controller: slController, decoration: const InputDecoration(labelText: '止损价', labelStyle: TextStyle(color: Colors.grey)), style: const TextStyle(color: Colors.white), keyboardType: TextInputType.number),
+              TextField(controller: tp1Controller, decoration: const InputDecoration(labelText: 'TP1', labelStyle: TextStyle(color: Colors.grey)), style: const TextStyle(color: Colors.white), keyboardType: TextInputType.number),
+              TextField(controller: tp2Controller, decoration: const InputDecoration(labelText: 'TP2', labelStyle: TextStyle(color: Colors.grey)), style: const TextStyle(color: Colors.white), keyboardType: TextInputType.number),
+              TextField(controller: qtyController, decoration: const InputDecoration(labelText: '数量', labelStyle: TextStyle(color: Colors.grey)), style: const TextStyle(color: Colors.white), keyboardType: TextInputType.number),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          ElevatedButton(
+            child: const Text('添加'),
+            onPressed: () {
+              final entry = double.tryParse(entryController.text) ?? 0;
+              final sl = double.tryParse(slController.text) ?? 0;
+              final tp1 = double.tryParse(tp1Controller.text) ?? 0;
+              final tp2 = double.tryParse(tp2Controller.text) ?? 0;
+              final qty = double.tryParse(qtyController.text) ?? 0;
+              if (entry > 0 && sl > 0 && tp1 > 0 && qty > 0) {
+                app.addManualPosition(
+                  direction: directionController.text,
+                  entryPrice: entry,
+                  stopLoss: sl,
+                  tp1: tp1,
+                  tp2: tp2 > 0 ? tp2 : tp1 * 1.5,
+                  quantity: qty,
+                );
+                Navigator.pop(context);
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -79,8 +162,14 @@ class PositionsPage extends StatelessWidget {
     final pnl = pos.unrealizedPnl(currentPrice);
     final pnlColor = pnl >= 0 ? Colors.green : Colors.red;
 
+    // 平仓提醒：价格接近止损或止盈
+    final nearSL = isLong ? (currentPrice - pos.stopLoss).abs() / pos.stopLoss < 0.005 : (pos.stopLoss - currentPrice).abs() / pos.stopLoss < 0.005;
+    final nearTP1 = isLong ? (pos.tp1 - currentPrice).abs() / pos.tp1 < 0.005 : (currentPrice - pos.tp1).abs() / pos.tp1 < 0.005;
+    final alertColor = nearSL ? Colors.red : (nearTP1 ? Colors.orange : null);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      color: alertColor != null ? alertColor.withOpacity(0.15) : null,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

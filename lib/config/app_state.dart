@@ -188,6 +188,30 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 手动记录持仓
+  void addManualPosition({
+    required String direction,
+    required double entryPrice,
+    required double stopLoss,
+    required double tp1,
+    required double tp2,
+    required double quantity,
+  }) {
+    final pos = Position(
+      id: 'manual_${DateTime.now().millisecondsSinceEpoch}',
+      signalId: null,
+      direction: direction == 'long' ? SignalDirection.long : SignalDirection.short,
+      entryPrice: entryPrice,
+      quantity: quantity,
+      stopLoss: stopLoss,
+      tp1: tp1,
+      tp2: tp2,
+      openedAt: DateTime.now().millisecondsSinceEpoch,
+      batchNumber: positions.length + 1,
+    );
+    addPosition(pos);
+  }
+
   void closePosition(String id, double closePrice, double pnl) {
     riskManager.closePosition(id, closePrice, pnl);
     notifyListeners();
