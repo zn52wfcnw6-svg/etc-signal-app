@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/app_state.dart';
 import 'backtest_page.dart';
+import '../models/trading_pair.dart';
 import '../engine/risk/risk_manager.dart';
 import 'signal_panel.dart';
 import 'positions_page.dart';
@@ -30,7 +31,16 @@ class _HomePageState extends State<HomePage> {
       builder: (context, app, child) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('ETH永续信号监控'),
+            title: GestureDetector(
+              onTap: () => _showPairSelector(app),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(app.currentPair.displayName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Icon(Icons.arrow_drop_down, size: 20),
+                ],
+              ),
+            ),
             backgroundColor: _riskColor(app.riskState?.level ?? RiskLevel.L0),
             actions: [
               IconButton(
@@ -68,6 +78,37 @@ class _HomePageState extends State<HomePage> {
           ),
         );
       },
+    );
+  }
+
+  void _showPairSelector(AppState app) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey.shade900,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('选择交易对', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+            ...app.supportedPairs.map((pair) => ListTile(
+              leading: CircleAvatar(
+                backgroundColor: pair == app.currentPair ? Colors.blue : Colors.grey.shade800,
+                child: Text(pair!.baseAsset.substring(0, 1), style: const TextStyle(color: Colors.white, fontSize: 14)),
+              ),
+              title: Text(pair!.displayName, style: const TextStyle(color: Colors.white)),
+              trailing: pair == app.currentPair ? const Icon(Icons.check, color: Colors.blue) : null,
+              onTap: () {
+                app.setCurrentPair(pair);
+                Navigator.pop(context);
+              },
+            )),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
     );
   }
 

@@ -14,6 +14,7 @@ import '../monitor/self_healing.dart';
 import '../storage/database_helper.dart';
 import '../models/signal.dart';
 import '../models/position.dart';
+import '../models/trading_pair.dart';
 import '../utils/constants.dart';
 
 /// 应用全局状态
@@ -32,11 +33,14 @@ class AppState extends ChangeNotifier {
   int _pollInterval = AppConstants.pollIntervalSeconds;
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
+  TradingPair _currentPair = TradingPair.supportedPairs.first;
 
   String get riskPreference => _riskPreference;
   int get pollInterval => _pollInterval;
   bool get soundEnabled => _soundEnabled;
   bool get vibrationEnabled => _vibrationEnabled;
+  TradingPair get currentPair => _currentPair;
+  List<TradingPair> get supportedPairs => TradingPair.supportedPairs;
 
   void setRiskPreference(String pref) {
     _riskPreference = pref;
@@ -60,6 +64,13 @@ class AppState extends ChangeNotifier {
   void setSoundEnabled(bool enabled) {
     _soundEnabled = enabled;
     notifyListeners();
+  }
+
+  void setCurrentPair(TradingPair pair) {
+    _currentPair = pair;
+    notifyListeners();
+    // 重新加载行情数据
+    manualRefresh();
   }
 
   void setVibrationEnabled(bool enabled) {
