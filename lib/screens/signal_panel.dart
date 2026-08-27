@@ -5,6 +5,7 @@ import '../models/signal.dart';
 import '../utils/constants.dart';
 import '../engine/long_cycle/long_cycle_manager.dart';
 import '../engine/risk/risk_manager.dart';
+import '../models/trade_recommendation.dart';
 
 class SignalPanel extends StatelessWidget {
   const SignalPanel({super.key});
@@ -36,6 +37,9 @@ class SignalPanel extends StatelessWidget {
                 _buildSignalCard(signal, app)
               else
                 _buildMarketAnalysisCard(app, longCycle, riskLevel, currentPrice),
+              const SizedBox(height: 16),
+              // 推单区
+              _buildTradeRecommendationCard(app),
               const SizedBox(height: 16),
               // 关键价位
               if (longCycle != null)
@@ -175,6 +179,118 @@ class SignalPanel extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTradeRecommendationCard(AppState app) {
+    final rec = app.tradeRecommendation;
+    final isLong = rec.direction == TradeRecommendationDirection.long;
+    final isShort = rec.direction == TradeRecommendationDirection.short;
+    final isWait = rec.direction == TradeRecommendationDirection.wait;
+
+    Color accentColor;
+    if (isLong) {
+      accentColor = Colors.green;
+    } else if (isShort) {
+      accentColor = Colors.red;
+    } else {
+      accentColor = Colors.grey;
+    }
+
+    return Card(
+      elevation: 2,
+      color: const Color(0xFF1A1A1A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('推单区', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: accentColor, width: 1),
+                  ),
+                  child: Text(
+                    rec.directionText,
+                    style: TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (rec.isConfirmed)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text('已确认信号', style: TextStyle(color: Colors.orange, fontSize: 11)),
+              ),
+            const SizedBox(height: 12),
+            if (!isWait) ...[
+              _recRow('开仓区间', rec.entryText, Colors.blue),
+              const SizedBox(height: 8),
+              _recRow('止损 SL', rec.slText, Colors.red),
+              const SizedBox(height: 8),
+              _recRow('止盈 TP1', rec.tp1Text, Colors.green),
+              const SizedBox(height: 8),
+              _recRow('止盈 TP2', rec.tp2Text, Colors.green),
+              const SizedBox(height: 8),
+              _recRow('盈亏比', rec.rrText, Colors.orange),
+              const SizedBox(height: 8),
+              _recRow('建议仓位', rec.positionText, Colors.purple),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('触发条件', style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(rec.triggerCondition, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(rec.reason, style: const TextStyle(fontSize: 13, color: Colors.white70)),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(rec.reason, style: const TextStyle(fontSize: 11, color: Colors.white54)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _recRow(String label, String value, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, color: Colors.white60)),
+        Text(value, style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600)),
+      ],
     );
   }
 

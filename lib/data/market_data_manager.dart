@@ -107,17 +107,17 @@ class MarketDataManager {
 
       // 长周期K线不足时重新加载（每10次轮询检查一次）
       _pollCount++;
-      if (_pollCount % 10 == 0) {
-        if (!_hasEnoughKlines(AppConstants.ethSymbol, '4h', 30)) {
+      if (_pollCount % 5 == 0) {
+        if (!_hasEnoughKlines(AppConstants.ethSymbol, '4h', 20)) {
           await _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 100);
         }
-        if (!_hasEnoughKlines(AppConstants.ethSymbol, '1d', 30)) {
+        if (!_hasEnoughKlines(AppConstants.ethSymbol, '1d', 20)) {
           await _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 100);
         }
-        if (!_hasEnoughKlines(AppConstants.ethSymbol, '1h', 30)) {
+        if (!_hasEnoughKlines(AppConstants.ethSymbol, '1h', 20)) {
           await _fetchAndCacheKlines(AppConstants.ethSymbol, '1h', 100);
         }
-        if (!_hasEnoughKlines(AppConstants.btcSymbol, '4h', 30)) {
+        if (!_hasEnoughKlines(AppConstants.btcSymbol, '4h', 20)) {
           await _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 100);
         }
       }

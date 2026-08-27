@@ -4,6 +4,8 @@ import '../data/market_data_manager.dart';
 import '../engine/long_cycle/long_cycle_manager.dart';
 import '../engine/short_cycle/signal_engine.dart';
 import '../engine/risk/risk_manager.dart';
+import '../engine/trade_recommendation_engine.dart';
+import '../models/trade_recommendation.dart';
 import '../engine/adaptive/adaptive_params.dart';
 import '../engine/market_regime/market_regime.dart';
 import '../engine/multi_timeframe/mtf_analyzer.dart';
@@ -46,6 +48,16 @@ class AppState extends ChangeNotifier {
   MarketRegimeResult? get marketRegime => _analysis?.regime;
   MultiTimeframeResult? get mtfResult => _analysis?.mtf;
   DeepOrderFlowResult? get deepOrderFlow => _analysis?.orderFlow;
+  int get riskLevelIndex => _riskState?.level.index ?? 0;
+  TradeRecommendation get tradeRecommendation {
+    return TradeRecommendationEngine.generate(
+      currentPrice: _ethPrice,
+      longCycle: _analysis?.longCycle,
+      orderFlow: _analysis?.orderFlow,
+      riskLevel: riskLevelIndex,
+      confirmedSignal: _currentSignal,
+    );
+  }
   List<Position> get positions => riskManager.positions;
   double get accountBalance => riskManager.accountBalance;
   double get totalRisk => riskManager.totalRisk;
