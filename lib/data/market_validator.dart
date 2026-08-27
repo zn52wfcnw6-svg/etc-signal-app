@@ -56,17 +56,34 @@ class MarketValidator {
       }
     }
 
-    // 异常源超过上限 → 校验失败
+    // 异常源超过上限 → 降级使用中位数价格（S级容错：有数据总比没数据好）
     if (abnormalSources.length > AppConstants.maxDegradedSources) {
+      // 使用所有源的中位数，标记为降级
+      final allPrices = priceMap.values.toList();
+      final fallbackPrice = Indicators.median(allPrices);
+      final fallbackSnapshot = snapshots.firstWhere(
+        (s) => (s.price - fallbackPrice).abs() / fallbackPrice < 0.01,
+        orElse: () => snapshots.first,
+      );
       return ValidationResult(
-        isFailed: true,
+        data: ValidatedMarketData(
+          price: fallbackPrice,
+          fundingRate: fallbackSnapshot.fundingRate,
+          openInterest: fallbackSnapshot.openInterest,
+          validSources: abnormalSources,
+          excludedSources: const [],
+          isDegraded: true,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        ),
         abnormalSources: abnormalSources,
-        reason: '${abnormalSources.length}家交易所价格异常: ${abnormalSources.join(", ")}',
+        reason: '多源价格分歧，降级使用中位数',
       );
     }
 
-    // 用有效源重新计算中位数
-    final validPrices = validSources.map((s) => priceMap[s]!).toList();
+    // 用有效源重新计算中位数，如果有效源为空则使用所有源
+    final validPrices = validSources.isNotEmpty
+        ? validSources.map((s) => priceMap[s]!).toList()
+        : priceMap.values.toList();
     final finalPrice = Indicators.median(validPrices);
 
     // 资金费率和OI取有效源的平均

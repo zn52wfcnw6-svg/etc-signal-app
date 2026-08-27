@@ -6,6 +6,7 @@ import '../utils/constants.dart';
 import '../engine/long_cycle/long_cycle_manager.dart';
 import '../engine/risk/risk_manager.dart';
 import '../models/trade_recommendation.dart';
+import '../widgets/kline_chart.dart';
 
 class SignalPanel extends StatelessWidget {
   const SignalPanel({super.key});
@@ -38,6 +39,21 @@ class SignalPanel extends StatelessWidget {
               else
                 _buildMarketAnalysisCard(app, longCycle, riskLevel, currentPrice),
               const SizedBox(height: 16),
+              // K线图表
+              if (app.marketData.getEth5m().isNotEmpty)
+                KlineChart(
+                  klines: app.marketData.getEth5m(),
+                  supportLevels: app.longCycleResult?.supportLevels.map((e) => e.mid).toList(),
+                  resistanceLevels: app.longCycleResult?.resistanceLevels.map((e) => e.mid).toList(),
+                  entryLower: app.tradeRecommendation.entryLower,
+                  entryUpper: app.tradeRecommendation.entryUpper,
+                  stopLoss: app.tradeRecommendation.stopLoss,
+                  tp1: app.tradeRecommendation.tp1,
+                  tp2: app.tradeRecommendation.tp2,
+                  height: 280,
+                ),
+              if (app.marketData.getEth5m().isNotEmpty)
+                const SizedBox(height: 16),
               // 推单区
               _buildTradeRecommendationCard(app),
               const SizedBox(height: 16),

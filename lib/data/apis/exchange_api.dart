@@ -1,17 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../../utils/robust_http_client.dart';
 import '../../models/market_data.dart';
 import '../../utils/constants.dart';
 
 /// CORS代理：Web版通过代理访问交易所API
-String _proxy(String url) {
-  if (kIsWeb) {
-    return 'https://corsproxy.io/?url=${Uri.encodeComponent(url)}';
-  }
-  return url;
-}
-
 /// 交易所API基类
 abstract class ExchangeApi {
   String get name;
@@ -34,10 +28,8 @@ class BinanceApi implements ExchangeApi {
   @override
   Future<MarketSnapshot?> fetchTicker(String symbol) async {
     try {
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/fapi/v1/ticker/price?symbol=$symbol')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/fapi/v1/ticker/price?symbol=$symbol');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       return MarketSnapshot(
         exchange: name,
@@ -53,10 +45,8 @@ class BinanceApi implements ExchangeApi {
   @override
   Future<List<Kline>> fetchKlines(String symbol, String interval, int limit) async {
     try {
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/fapi/v1/klines?symbol=$symbol&interval=$interval&limit=$limit')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return [];
+      final resp = await RobustHttpClient.get('$baseUrl/fapi/v1/klines?symbol=$symbol&interval=$interval&limit=$limit');
+      if (resp == null || resp.statusCode != 200) return [];
       final List<dynamic> data = json.decode(resp.body);
       return data.map((e) => Kline.fromJson(e)).toList();
     } catch (_) {
@@ -67,10 +57,8 @@ class BinanceApi implements ExchangeApi {
   @override
   Future<double?> fetchFundingRate(String symbol) async {
     try {
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/fapi/v1/premiumIndex?symbol=$symbol')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/fapi/v1/premiumIndex?symbol=$symbol');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       return double.parse(data['lastFundingRate'].toString());
     } catch (_) {
@@ -81,10 +69,8 @@ class BinanceApi implements ExchangeApi {
   @override
   Future<double?> fetchOpenInterest(String symbol) async {
     try {
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/fapi/v1/openInterest?symbol=$symbol')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/fapi/v1/openInterest?symbol=$symbol');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       return double.parse(data['openInterest'].toString());
     } catch (_) {
@@ -95,10 +81,8 @@ class BinanceApi implements ExchangeApi {
   @override
   Future<List<Trade>> fetchRecentTrades(String symbol, int limit) async {
     try {
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/fapi/v1/trades?symbol=$symbol&limit=$limit')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return [];
+      final resp = await RobustHttpClient.get('$baseUrl/fapi/v1/trades?symbol=$symbol&limit=$limit');
+      if (resp == null || resp.statusCode != 200) return [];
       final List<dynamic> data = json.decode(resp.body);
       return data.map((e) => Trade(
         id: e['id'] is int ? e['id'] : int.parse(e['id'].toString()),
@@ -126,10 +110,8 @@ class OkxApi implements ExchangeApi {
   Future<MarketSnapshot?> fetchTicker(String symbol) async {
     try {
       final instId = _toOkxSymbol(symbol);
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v5/market/ticker?instId=$instId')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/api/v5/market/ticker?instId=$instId');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       if (data['code'] != '0' || (data['data'] as List).isEmpty) return null;
       final ticker = data['data'][0];
@@ -149,10 +131,8 @@ class OkxApi implements ExchangeApi {
     try {
       final instId = _toOkxSymbol(symbol);
       final bar = _toOkxInterval(interval);
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v5/market/candles?instId=$instId&bar=$bar&limit=$limit')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return [];
+      final resp = await RobustHttpClient.get('$baseUrl/api/v5/market/candles?instId=$instId&bar=$bar&limit=$limit');
+      if (resp == null || resp.statusCode != 200) return [];
       final data = json.decode(resp.body);
       if (data['code'] != '0') return [];
       final List<dynamic> candles = data['data'];
@@ -200,10 +180,8 @@ class OkxApi implements ExchangeApi {
   Future<double?> fetchFundingRate(String symbol) async {
     try {
       final instId = _toOkxSymbol(symbol);
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v5/public/funding-rate?instId=$instId')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/api/v5/public/funding-rate?instId=$instId');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       if (data['code'] != '0' || (data['data'] as List).isEmpty) return null;
       return double.parse(data['data'][0]['fundingRate'].toString());
@@ -216,10 +194,8 @@ class OkxApi implements ExchangeApi {
   Future<double?> fetchOpenInterest(String symbol) async {
     try {
       final instId = _toOkxSymbol(symbol);
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v5/public/open-interest?instId=$instId')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/api/v5/public/open-interest?instId=$instId');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       if (data['code'] != '0' || (data['data'] as List).isEmpty) return null;
       return double.parse(data['data'][0]['oi'].toString());
@@ -232,10 +208,8 @@ class OkxApi implements ExchangeApi {
   Future<List<Trade>> fetchRecentTrades(String symbol, int limit) async {
     try {
       final instId = _toOkxSymbol(symbol);
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v5/market/trades?instId=$instId&limit=$limit')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return [];
+      final resp = await RobustHttpClient.get('$baseUrl/api/v5/market/trades?instId=$instId&limit=$limit');
+      if (resp == null || resp.statusCode != 200) return [];
       final data = json.decode(resp.body);
       if (data['code'] != '0') return [];
       final List<dynamic> trades = data['data'];
@@ -262,10 +236,8 @@ class BybitApi implements ExchangeApi {
   @override
   Future<MarketSnapshot?> fetchTicker(String symbol) async {
     try {
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/v5/market/tickers?category=linear&symbol=$symbol')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/v5/market/tickers?category=linear&symbol=$symbol');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       if (data['retCode'] != 0 || (data['result']['list'] as List).isEmpty) return null;
       final ticker = data['result']['list'][0];
@@ -283,10 +255,8 @@ class BybitApi implements ExchangeApi {
   @override
   Future<List<Kline>> fetchKlines(String symbol, String interval, int limit) async {
     try {
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/v5/market/kline?category=linear&symbol=$symbol&interval=$interval&limit=$limit')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return [];
+      final resp = await RobustHttpClient.get('$baseUrl/v5/market/kline?category=linear&symbol=$symbol&interval=$interval&limit=$limit');
+      if (resp == null || resp.statusCode != 200) return [];
       final data = json.decode(resp.body);
       if (data['retCode'] != 0) return [];
       final List<dynamic> candles = data['result']['list'];
@@ -308,10 +278,8 @@ class BybitApi implements ExchangeApi {
   @override
   Future<double?> fetchFundingRate(String symbol) async {
     try {
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/v5/market/funding/history?category=linear&symbol=$symbol&limit=1')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/v5/market/funding/history?category=linear&symbol=$symbol&limit=1');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       if (data['retCode'] != 0 || (data['result']['list'] as List).isEmpty) return null;
       return double.parse(data['result']['list'][0]['fundingRate'].toString());
@@ -323,10 +291,8 @@ class BybitApi implements ExchangeApi {
   @override
   Future<double?> fetchOpenInterest(String symbol) async {
     try {
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/v5/market/open-interest?category=linear&symbol=$symbol&intervalTime=5min')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/v5/market/open-interest?category=linear&symbol=$symbol&intervalTime=5min');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       if (data['retCode'] != 0 || (data['result']['list'] as List).isEmpty) return null;
       return double.parse(data['result']['list'][0]['openInterest'].toString());
@@ -353,10 +319,8 @@ class BitgetApi implements ExchangeApi {
   Future<MarketSnapshot?> fetchTicker(String symbol) async {
     try {
       final instId = '${symbol.substring(0, 3)}${symbol.substring(3)}_UMCBL';
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v2/mix/market/ticker?symbol=$instId&productType=umcbl')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/api/v2/mix/market/ticker?symbol=$instId&productType=umcbl');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       if (data['code'] != '00000' || data['data'] == null) return null;
       return MarketSnapshot(
@@ -375,10 +339,8 @@ class BitgetApi implements ExchangeApi {
     try {
       final instId = '${symbol.substring(0, 3)}${symbol.substring(3)}_UMCBL';
       final granularity = _toBitgetInterval(interval);
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v2/mix/market/candles?symbol=$instId&granularity=$granularity&limit=$limit&productType=umcbl')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return [];
+      final resp = await RobustHttpClient.get('$baseUrl/api/v2/mix/market/candles?symbol=$instId&granularity=$granularity&limit=$limit&productType=umcbl');
+      if (resp == null || resp.statusCode != 200) return [];
       final data = json.decode(resp.body);
       if (data['code'] != '00000' || data['data'] == null) return [];
       final List<dynamic> candles = data['data'];
@@ -412,10 +374,8 @@ class BitgetApi implements ExchangeApi {
   Future<double?> fetchFundingRate(String symbol) async {
     try {
       final instId = '${symbol.substring(0, 3)}${symbol.substring(3)}_UMCBL';
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v2/mix/market/current-fund-rate?symbol=$instId&productType=umcbl')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/api/v2/mix/market/current-fund-rate?symbol=$instId&productType=umcbl');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       if (data['code'] != '00000' || data['data'] == null) return null;
       return double.parse(data['data']['fundingRate'].toString());
@@ -428,10 +388,8 @@ class BitgetApi implements ExchangeApi {
   Future<double?> fetchOpenInterest(String symbol) async {
     try {
       final instId = '${symbol.substring(0, 3)}${symbol.substring(3)}_UMCBL';
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v2/mix/market/open-interest?symbol=$instId&productType=umcbl')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/api/v2/mix/market/open-interest?symbol=$instId&productType=umcbl');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       if (data['code'] != '00000' || data['data'] == null) return null;
       return double.parse(data['data']['totalOpenInterest'].toString());
@@ -457,10 +415,8 @@ class GateApi implements ExchangeApi {
   Future<MarketSnapshot?> fetchTicker(String symbol) async {
     try {
       final contract = _toGateSymbol(symbol);
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v4/futures/usdt/tickers?contract=$contract')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/api/v4/futures/usdt/tickers?contract=$contract');
+      if (resp == null || resp.statusCode != 200) return null;
       final List<dynamic> data = json.decode(resp.body);
       if (data.isEmpty) return null;
       return MarketSnapshot(
@@ -478,10 +434,8 @@ class GateApi implements ExchangeApi {
   Future<List<Kline>> fetchKlines(String symbol, String interval, int limit) async {
     try {
       final contract = _toGateSymbol(symbol);
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v4/futures/usdt/candlesticks?contract=$contract&interval=$interval&limit=$limit')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return [];
+      final resp = await RobustHttpClient.get('$baseUrl/api/v4/futures/usdt/candlesticks?contract=$contract&interval=$interval&limit=$limit');
+      if (resp == null || resp.statusCode != 200) return [];
       final List<dynamic> data = json.decode(resp.body);
       return data.map((e) => Kline(
         openTime: int.parse(e[0].toString()) * 1000,
@@ -501,10 +455,8 @@ class GateApi implements ExchangeApi {
   Future<double?> fetchFundingRate(String symbol) async {
     try {
       final contract = _toGateSymbol(symbol);
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v4/futures/usdt/contracts/$contract')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/api/v4/futures/usdt/contracts/$contract');
+      if (resp == null || resp.statusCode != 200) return null;
       final data = json.decode(resp.body);
       return double.parse(data['funding_rate'].toString());
     } catch (_) {
@@ -516,10 +468,8 @@ class GateApi implements ExchangeApi {
   Future<double?> fetchOpenInterest(String symbol) async {
     try {
       final contract = _toGateSymbol(symbol);
-      final resp = await http.get(
-        Uri.parse(_proxy('$baseUrl/api/v4/futures/usdt/tickers?contract=$contract')),
-      ).timeout(const Duration(seconds: AppConstants.apiTimeoutSeconds));
-      if (resp.statusCode != 200) return null;
+      final resp = await RobustHttpClient.get('$baseUrl/api/v4/futures/usdt/tickers?contract=$contract');
+      if (resp == null || resp.statusCode != 200) return null;
       final List<dynamic> data = json.decode(resp.body);
       if (data.isEmpty) return null;
       return double.parse(data[0]['open_interest'].toString());
