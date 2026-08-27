@@ -88,8 +88,15 @@ class SignalEngine {
       k1m: _dataManager.getEth1m(),
     );
 
-    // 5. 深度订单流（Web版无逐笔成交，用K线近似）
-    final orderFlow = DeepOrderFlowAnalyzer.analyze(eth5m, []);
+    // 5. 深度订单流
+    final orderFlowBars = _dataManager.orderFlow.getRecentBars(50);
+    final ethData = _dataManager.ethData;
+    final orderFlow = DeepOrderFlowAnalyzer.analyze(
+      eth5m,
+      orderFlowBars,
+      currentPrice: ethData?.price ?? 0,
+      openInterest: ethData?.openInterest ?? 0,
+    );
 
     // 保存分析结果
     _lastAnalysis = AnalysisResult(
