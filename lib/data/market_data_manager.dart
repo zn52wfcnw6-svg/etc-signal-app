@@ -26,6 +26,7 @@ class MarketDataManager {
 
   Timer? _pollTimer;
   bool _isRunning = false;
+  int _pollCount = 0;
 
   Future<void> init() async {
     await _orderFlowManager.init();
@@ -33,16 +34,28 @@ class MarketDataManager {
   }
 
   Future<void> _preloadKlines() async {
-    await Future.wait([
-      _fetchAndCacheKlines(AppConstants.ethSymbol, '1m', 100),
-      _fetchAndCacheKlines(AppConstants.ethSymbol, '5m', 100),
-      _fetchAndCacheKlines(AppConstants.ethSymbol, '1h', 200),
-      _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 200),
-      _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 200),
-      _fetchAndCacheKlines(AppConstants.btcSymbol, '5m', 50),
-      _fetchAndCacheKlines(AppConstants.btcSymbol, '15m', 50),
-      _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 200),
-    ]);
+    // 串行加载，避免代理服务器压力过大
+    final tasks = [
+      ('eth', '1m', 100),
+      ('eth', '5m', 100),
+      ('eth', '1h', 100),
+      ('eth', '4h', 100),
+      ('eth', '1d', 100),
+      ('btc', '5m', 50),
+      ('btc', '15m', 50),
+      ('btc', '4h', 100),
+    ];
+    for (final t in tasks) {
+      final symbol = t.$1 == 'eth' ? AppConstants.ethSymbol : AppConstants.btcSymbol;
+      await _fetchAndCacheKlines(symbol, t.$2, t.$3);
+    }
+  }
+
+  /// 检查K线是否充足
+  bool _hasEnoughKlines(String symbol, String interval, int minCount) {
+    final key = '${symbol}_$interval';
+    final cached = _klineCache[key];
+    return cached != null && cached.length >= minCount;
   }
 
   Future<void> _fetchAndCacheKlines(String symbol, String interval, int limit) async {
@@ -90,11 +103,28 @@ class MarketDataManager {
         _errorController.add('BTC行情校验失败: ${btcResult.reason}');
       }
 
-      // 更新K线缓存（只更新1m/5m）
+      // 更新K线缓存
       await _updateKlineCache(AppConstants.ethSymbol, '1m');
       await _updateKlineCache(AppConstants.ethSymbol, '5m');
       await _updateKlineCache(AppConstants.btcSymbol, '5m');
       await _updateKlineCache(AppConstants.btcSymbol, '15m');
+
+      // 长周期K线不足时重新加载（每10次轮询检查一次）
+      _pollCount++;
+      if (_pollCount % 10 == 0) {
+        if (!_hasEnoughKlines(AppConstants.ethSymbol, '4h', 30)) {
+          await _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 100);
+        }
+        if (!_hasEnoughKlines(AppConstants.ethSymbol, '1d', 30)) {
+          await _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 100);
+        }
+        if (!_hasEnoughKlines(AppConstants.ethSymbol, '1h', 30)) {
+          await _fetchAndCacheKlines(AppConstants.ethSymbol, '1h', 100);
+        }
+        if (!_hasEnoughKlines(AppConstants.btcSymbol, '4h', 30)) {
+          await _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 100);
+        }
+      }
     } catch (e) {
       _errorController.add('行情轮询异常: $e');
     }
