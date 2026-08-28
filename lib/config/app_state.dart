@@ -14,6 +14,7 @@ import '../monitor/self_healing.dart';
 import '../monitor/performance_monitor.dart';
 import '../data/multi_dimension_data_manager.dart';
 import '../engine/sss/sss_analyzer.dart';
+import '../engine/signal_history_tracker.dart';
 import '../storage/database_helper.dart';
 import '../models/signal.dart';
 import '../models/position.dart';
@@ -27,6 +28,7 @@ class AppState extends ChangeNotifier {
   RiskManager? riskManager;
   SelfHealingMonitor? selfHealing;
   final MultiDimensionDataManager multiDimensionData = MultiDimensionDataManager();
+  final SignalHistoryTracker signalHistory = SignalHistoryTracker();
   SSSResult? _sssResult;
   SSSResult? get sssResult => _sssResult;
   final DatabaseHelper database = DatabaseHelper();
@@ -297,6 +299,10 @@ class AppState extends ChangeNotifier {
     final signalTimer = PerformanceTimer('signal_engine');
     await signalEngine?.tick();
     signalTimer.finish();
+    
+    // 更新信号历史统计（根据当前价格判断止损/止盈）
+    signalHistory.updateSignals(_ethPrice);
+    
     timer.finish();
   }
 

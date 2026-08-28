@@ -69,17 +69,30 @@ class MultiDimensionDataManager {
   /// 获取消息面数据（加密货币新闻）
   Future<void> _fetchNews() async {
     try {
-      // 使用CoinGecko免费API获取新闻（通过CORS代理）
-      final url = 'https://api.coingecko.com/api/v3/status_updates?per_page=10';
+      // 使用CryptoCompare免费新闻API（通过CORS代理）
+      final url = 'https://min-api.cryptocompare.com/data/v2/news/?lang=EN';
       final data = await _fetchWithProxy(url);
-      if (data != null && data['status_updates'] != null) {
-        _news = (data['status_updates'] as List).take(10).map((item) {
+      if (data != null && data['Data'] != null) {
+        _news = (data['Data'] as List).take(10).map((item) {
+          // 简单情绪分析：根据标题关键词判断
+          final title = item['title'] ?? '';
+          double sentiment = 0;
+          if (title.contains(RegExp(r'surge|rally|bullish|breakout|soar|jump|gain', caseSensitive: false))) {
+            sentiment = 0.5;
+          } else if (title.contains(RegExp(r'crash|dump|bearish|plunge|drop|loss|hack|ban', caseSensitive: false))) {
+            sentiment = -0.5;
+          }
+          // 影响度：根据来源和标题长度判断
+          int impact = 2;
+          if (title.length > 80) impact = 3;
+          if (title.contains(RegExp(r'ETF|SEC|Fed|Bitcoin|Ethereum', caseSensitive: false))) impact = 4;
+          
           return NewsItem(
-            title: item['title'] ?? item['description'] ?? '新闻',
-            source: item['user'] ?? 'CoinGecko',
-            publishedAt: DateTime.tryParse(item['created_at'] ?? '') ?? DateTime.now(),
-            impact: 3,
-            sentiment: 0,
+            title: title,
+            source: item['source_info']?['name'] ?? 'CryptoCompare',
+            publishedAt: DateTime.fromMillisecondsSinceEpoch((item['published_on'] ?? 0) * 1000),
+            impact: impact.toDouble(),
+            sentiment: sentiment,
             url: item['url'] ?? '',
           );
         }).toList();

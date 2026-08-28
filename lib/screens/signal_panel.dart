@@ -213,11 +213,15 @@ class SignalPanel extends StatelessWidget {
     final direction = isLong ? 'long' : isShort ? 'short' : 'long';
     final technicalScore = isWait ? 50.0 : (rec.isConfirmed ? 85.0 : 70.0);
     final sssResult = app.multiDimensionData.calculateSSSScore(direction, technicalScore: technicalScore);
+    
+    // SSS级信号质量过滤：<80分强制观望，只输出高置信度信号
+    final isHighConfidence = sssResult.isHighConfidence;
+    final showSignal = isHighConfidence && (isLong || isShort);
 
     Color accentColor;
-    if (isLong) {
+    if (showSignal && isLong) {
       accentColor = Colors.green;
-    } else if (isShort) {
+    } else if (showSignal && isShort) {
       accentColor = Colors.red;
     } else {
       accentColor = Colors.grey;
@@ -252,7 +256,7 @@ class SignalPanel extends StatelessWidget {
                     border: Border.all(color: accentColor, width: 1),
                   ),
                   child: Text(
-                    rec.directionText,
+                    showSignal ? rec.directionText : '观望',
                     style: TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                 ),
@@ -269,7 +273,7 @@ class SignalPanel extends StatelessWidget {
                 child: const Text('已确认信号', style: TextStyle(color: Colors.orange, fontSize: 11)),
               ),
             const SizedBox(height: 12),
-            if (!isWait) ...[
+            if (showSignal) ...[
               _recRow('开仓区间', rec.entryText, Colors.blue),
               const SizedBox(height: 8),
               _recRow('止损 SL', rec.slText, Colors.red),
@@ -307,10 +311,30 @@ class SignalPanel extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.1),
+                  color: isHighConfidence ? Colors.grey.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isHighConfidence ? Colors.grey : Colors.orange, width: 1),
                 ),
-                child: Text(rec.reason, style: const TextStyle(fontSize: 13, color: Colors.white70)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!isHighConfidence) ...[
+                      Row(
+                        children: [
+                          const Icon(Icons.warning, color: Colors.orange, size: 16),
+                          const SizedBox(width: 6),
+                          Text('SSS级评分不足(${sssResult.totalScore.toStringAsFixed(0)}分<80分)，信号质量不达标',
+                              style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text('薄弱维度：${_getWeakDimensions(sssResult)}',
+                          style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                      const SizedBox(height: 6),
+                    ],
+                    Text(rec.reason, style: const TextStyle(fontSize: 13, color: Colors.white70)),
+                  ],
+                ),
               ),
             ],
             const SizedBox(height: 8),
@@ -682,6 +706,16 @@ class SignalPanel extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _getWeakDimensions(SSSResult sss) {
+    final weak = <String>[];
+    if (sss.technicalScore < 70) weak.add('技术面');
+    if (sss.newsScore < 70) weak.add('消息面');
+    if (sss.macroScore < 70) weak.add('宏观面');
+    if (sss.sentimentScore < 70) weak.add('情绪面');
+    if (sss.capitalScore < 70) weak.add('资金面');
+    return weak.isEmpty ? '综合评分偏低' : weak.join('、');
   }
 
   Widget _buildSSSBadge(SSSResult sss) {
