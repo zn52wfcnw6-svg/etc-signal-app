@@ -195,3 +195,4 @@ class SignalStats {
   String get totalPnlText => '${(totalPnl * 100).toStringAsFixed(2)}%';
   String get highScoreWinRateText => '${(highScoreWinRate * 100).toStringAsFixed(1)}%';
 }
+// rebuild trigger 1787921288
