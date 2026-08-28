@@ -139,10 +139,12 @@ class MultiDimensionDataManager {
     for (final proxy in _corsProxies) {
       try {
         final fullUrl = proxy + Uri.encodeComponent(url);
-        final resp = await RobustHttpClient.get(fullUrl).timeout(
+        final resp = await RobustHttpClient.getJson(fullUrl).timeout(
           const Duration(seconds: 10),
         );
-        if (resp != null) return resp;
+        if (resp != null && resp is Map<String, dynamic>) {
+          return resp;
+        }
       } catch (_) {
         continue;
       }

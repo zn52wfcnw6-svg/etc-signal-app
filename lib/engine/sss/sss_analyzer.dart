@@ -1,4 +1,4 @@
-import '../models/market_data.dart';
+import '../../models/market_data.dart';
 
 /// SSS级推单区综合分析模块
 /// 整合：技术面 + 消息面 + 宏观面 + 情绪面 + 资金面
