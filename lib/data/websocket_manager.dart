@@ -16,6 +16,7 @@ class ExchangeWebSocket {
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
   WsConnectionState _state = WsConnectionState.disconnected;
+  bool _isDisposed = false;
 
   final List<Trade> _tradesBuffer = [];
   final StreamController<Trade> _tradeController = StreamController<Trade>.broadcast();
@@ -180,6 +181,8 @@ class OrderFlowManager {
   final Map<String, List<OrderFlowBar>> _orderFlowBars = {};
   double _cumulativeCVD = 0;
   final StreamController<OrderFlowBar> _barController = StreamController<OrderFlowBar>.broadcast();
+  Timer? _barAggregatorTimer;
+  bool _isDisposed = false;
 
   Stream<OrderFlowBar> get barStream => _barController.stream;
   double get cumulativeCVD => _cumulativeCVD;
