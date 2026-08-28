@@ -90,8 +90,8 @@ class SignalHistoryTracker {
     final wins = closed.where((r) => r.pnl > 0).toList();
     final losses = closed.where((r) => r.pnl <= 0).toList();
     final totalPnl = closed.fold<double>(0, (sum, r) => sum + r.pnl);
-    final avgWin = wins.isNotEmpty ? wins.map((r) => r.pnl).reduce((a, b) => a + b) / wins.length : 0;
-    final avgLoss = losses.isNotEmpty ? losses.map((r) => r.pnl.abs()).reduce((a, b) => a + b) / losses.length : 0;
+    final avgWin = wins.isNotEmpty ? (wins.map((r) => r.pnl).reduce((a, b) => a + b) / wins.length).toDouble() : 0.0;
+    final avgLoss = losses.isNotEmpty ? (losses.map((r) => r.pnl.abs()).reduce((a, b) => a + b) / losses.length).toDouble() : 0.0;
 
     // 按SSS评分区间统计
     final highScore = closed.where((r) => r.sssScore >= 80).toList();
