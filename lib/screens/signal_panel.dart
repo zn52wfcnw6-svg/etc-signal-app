@@ -10,6 +10,7 @@ import '../widgets/kline_chart.dart';
 import '../widgets/order_flow_visualization.dart';
 import '../engine/news/news_analyzer.dart';
 import '../engine/signal_quality_evaluator.dart';
+import '../engine/sss/sss_analyzer.dart';
 
 class SignalPanel extends StatelessWidget {
   const SignalPanel({super.key});
