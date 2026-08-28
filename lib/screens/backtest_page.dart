@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/app_state.dart';
 import '../models/backtest_result.dart';
 import '../engine/backtest_engine.dart';
-import '../config/app_constants.dart';
+import '../utils/constants.dart';
 
 /// 历史回测页面
 class BacktestPage extends StatefulWidget {
