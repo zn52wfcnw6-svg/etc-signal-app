@@ -105,7 +105,7 @@ class ExchangeWebSocket {
     if (_tradesBuffer.length > 5000) {
       _tradesBuffer.removeRange(0, _tradesBuffer.length - 5000);
     }
-    _tradeController.add(trade);
+    if (!_isDisposed && !_tradeController.isClosed) _tradeController.add(trade);
   }
 
   void _onError(dynamic error) {
@@ -145,7 +145,7 @@ class ExchangeWebSocket {
 
   void _setState(WsConnectionState s) {
     _state = s;
-    _stateController.add(s);
+    if (!_isDisposed && !_stateController.isClosed) _stateController.add(s);
   }
 
   void disconnect() {
@@ -167,9 +167,10 @@ class ExchangeWebSocket {
   }
 
   void dispose() {
+    _isDisposed = true;
     disconnect();
-    _tradeController.close();
-    _stateController.close();
+    if (!_tradeController.isClosed) _tradeController.close();
+    if (!_stateController.isClosed) _stateController.close();
   }
 }
 
@@ -359,9 +360,14 @@ class OrderFlowManager {
   }
 
   void dispose() {
+    _isDisposed = true;
+    _barAggregatorTimer?.cancel();
+    _barAggregatorTimer = null;
     for (final ws in _sockets.values) {
       ws.dispose();
     }
-    _barController.close();
+    if (!_barController.isClosed) {
+      _barController.close();
+    }
   }
 }

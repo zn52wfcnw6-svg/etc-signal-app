@@ -26,6 +26,7 @@ class MarketDataManager {
 
   Timer? _pollTimer;
   bool _isRunning = false;
+  bool _isDisposed = false;
   int _pollCount = 0;
 
   Future<void> init() async {
@@ -134,7 +135,9 @@ class MarketDataManager {
         }
       }
     } catch (e) {
-      _errorController.add('行情轮询异常: $e');
+      if (!_isDisposed && !_errorController.isClosed) {
+        _errorController.add('行情轮询异常: $e');
+      }
     }
   }
 
@@ -263,10 +266,11 @@ class MarketDataManager {
   }
 
   void dispose() {
+    _isDisposed = true;
     stopPolling();
     _orderFlowManager.dispose();
-    _ethDataController.close();
-    _btcDataController.close();
-    _errorController.close();
+    if (!_ethDataController.isClosed) _ethDataController.close();
+    if (!_btcDataController.isClosed) _btcDataController.close();
+    if (!_errorController.isClosed) _errorController.close();
   }
 }

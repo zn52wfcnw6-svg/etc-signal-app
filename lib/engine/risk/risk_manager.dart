@@ -56,6 +56,7 @@ class RiskManager {
   AdaptiveParams? _adaptiveParams;
 
   final StreamController<RiskState> _riskController = StreamController<RiskState>.broadcast();
+  bool _isDisposed = false;
   Stream<RiskState> get riskStream => _riskController.stream;
   RiskState get riskState => _riskState;
   List<Position> get positions => List.unmodifiable(_positions);
@@ -177,7 +178,7 @@ class RiskManager {
 
     // 根据等级构建状态
     _riskState = _buildState(level, reasons);
-    _riskController.add(_riskState);
+    if (!_isDisposed && !_riskController.isClosed) _riskController.add(_riskState);
     return _riskState;
   }
 
@@ -228,6 +229,7 @@ class RiskManager {
   }
 
   void dispose() {
-    _riskController.close();
+    _isDisposed = true;
+    if (!_riskController.isClosed) _riskController.close();
   }
 }

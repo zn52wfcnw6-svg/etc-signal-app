@@ -25,6 +25,7 @@ class SelfHealingMonitor {
   final Map<String, int> _healAttempts = {};
 
   final StreamController<HealthCheckResult> _healthStream = StreamController.broadcast();
+  bool _isDisposed = false;
   Stream<HealthCheckResult> get healthStream => _healthStream.stream;
 
   // 外部注入的检查函数
@@ -54,7 +55,7 @@ class SelfHealingMonitor {
     for (final check in _checks) {
       try {
         final result = await check();
-        _healthStream.add(result);
+        if (!_isDisposed && !_healthStream.isClosed) _healthStream.add(result);
 
         if (!result.isHealthy) {
           _failureCounts[result.module] = (_failureCounts[result.module] ?? 0) + 1;

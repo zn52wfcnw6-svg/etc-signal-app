@@ -52,6 +52,7 @@ class SignalEngine {
 
   final StreamController<TradingSignal> _signalController = StreamController<TradingSignal>.broadcast();
   final StreamController<AnalysisResult> _analysisController = StreamController<AnalysisResult>.broadcast();
+  bool _isDisposed = false;
 
   Stream<TradingSignal> get signalStream => _signalController.stream;
   Stream<AnalysisResult> get analysisStream => _analysisController.stream;
@@ -235,7 +236,7 @@ class SignalEngine {
     );
 
     _currentSignal = signal;
-    _signalController.add(signal);
+    if (!_isDisposed && !_signalController.isClosed) _signalController.add(signal);
 
     // 记录到自优化引擎
     _optimizer.recordSignal(SignalRecord(
@@ -273,7 +274,7 @@ class SignalEngine {
       requiredConfirmations: adaptive.confirmationCount,
       pendingDirection: _pendingDirection,
     );
-    _analysisController.add(_lastAnalysis!);
+    if (!_isDisposed && !_analysisController.isClosed) _analysisController.add(_lastAnalysis!);
   }
 
   void _checkExpiry() {
@@ -311,7 +312,8 @@ class SignalEngine {
   }
 
   void dispose() {
-    _signalController.close();
-    _analysisController.close();
+    _isDisposed = true;
+    if (!_signalController.isClosed) _signalController.close();
+    if (!_analysisController.isClosed) _analysisController.close();
   }
 }
