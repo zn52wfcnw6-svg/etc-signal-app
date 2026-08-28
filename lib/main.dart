@@ -22,12 +22,31 @@ void main() {
     FlutterError.presentError(details);
   };
 
+  // 判断是否为非致命网络错误
+  bool isNonFatalError(String error) {
+    final lower = error.toLowerCase();
+    return lower.contains('websocket') ||
+        lower.contains('socket') ||
+        lower.contains('http') ||
+        lower.contains('network') ||
+        lower.contains('timeout') ||
+        lower.contains('connection') ||
+        lower.contains('failed to connect') ||
+        lower.contains('connection refused') ||
+        lower.contains('handshake') ||
+        lower.contains('certificate') ||
+        lower.contains('cors') ||
+        lower.contains('xmlhttprequest');
+  }
+
   runZonedGuarded(
     () {
       runApp(const EthSignalApp());
     },
     (Object error, StackTrace stack) {
-      // 异步错误 - 直接替换整个应用为错误页面
+      // 非致命网络错误忽略，不崩溃应用
+      if (isNonFatalError(error.toString())) return;
+      // 致命错误 - 显示错误页面
       runApp(_GlobalErrorWidget(error: error, stackTrace: stack, library: 'async', context: ''));
     },
   );
