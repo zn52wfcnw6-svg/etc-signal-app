@@ -10,8 +10,8 @@ class BacktestEngine {
   static BacktestResult runBacktest(
     List<Kline> klines, {
     double riskPerTrade = 0.01,
-    double minRiskReward = 2.0, // 回测用盈亏比≥2:1，确保各周期有足够信号
-    int confirmationBars = 2, // 连续2次确认，增加信号频率
+    double minRiskReward = 4.0, // SSS级标准：盈亏比≥4:1
+    int confirmationBars = 3, // SSS级标准：连续3次确认
     int lookbackPeriod = 20,
   }) {
     if (klines.length < lookbackPeriod + confirmationBars + 50) {
@@ -144,8 +144,8 @@ class BacktestEngine {
     // G4: Delta反转（卖盘衰竭，买盘介入）- 加分项，不强制
     final g4Pass = _checkDeltaReversal(eth1m, isLong: true);
 
-    // G3+G4至少通过一个（订单流确认）
-    if (!g3Pass && !g4Pass) return null;
+    // G3+G4必须全部通过（SSS级订单流确认）
+    if (!g3Pass || !g4Pass) return null;
 
     // G5: K线反转形态 - 核心
     if (!_checkBullishPattern(eth1m)) return null;
@@ -196,8 +196,8 @@ class BacktestEngine {
     // G4: Delta反转（买盘衰竭，卖盘介入）- 加分项，不强制
     final g4Pass = _checkDeltaReversal(eth1m, isLong: false);
 
-    // G3+G4至少通过一个
-    if (!g3Pass && !g4Pass) return null;
+    // G3+G4必须全部通过（SSS级订单流确认）
+    if (!g3Pass || !g4Pass) return null;
 
     // G5: K线反转形态（看跌）- 核心
     if (!_checkBearishPattern(eth1m)) return null;
@@ -265,13 +265,20 @@ class BacktestEngine {
     return false;
   }
 
-  /// G3: 成交量背离（模拟CVD背离）- 放宽版
+  /// G3: 成交量背离（模拟CVD背离）- SSS级严格标准
   static bool _checkVolumeDivergence(List<Kline> klines, {required bool isLong}) {
-    if (klines.length < 5) return true; // 数据不足时默认通过
-    final recent = klines.sublist(klines.length - 5);
-    final avgVol = recent.map((k) => k.volume).reduce((a, b) => a + b) / recent.length;
-    // 只要有成交量就通过（放宽条件，确保有信号）
-    return avgVol > 0;
+    if (klines.length < 10) return false;
+    final firstHalf = klines.sublist(0, klines.length ~/ 2);
+    final secondHalf = klines.sublist(klines.length ~/ 2);
+    final avgVol1 = firstHalf.map((k) => k.volume).reduce((a, b) => a + b) / firstHalf.length;
+    final avgVol2 = secondHalf.map((k) => k.volume).reduce((a, b) => a + b) / secondHalf.length;
+    final price1 = firstHalf.last.close;
+    final price2 = secondHalf.last.close;
+    if (isLong) {
+      return price2 < price1 && avgVol2 < avgVol1 * 1.2;
+    } else {
+      return price2 > price1 && avgVol2 < avgVol1 * 1.2;
+    }
   }
 
   /// G4: Delta反转（用成交量变化模拟）- 放宽版
