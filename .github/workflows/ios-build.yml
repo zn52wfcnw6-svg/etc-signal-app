@@ -38,11 +38,4 @@ jobs:
           name: ETC_Signal_App.ipa
           path: ETC_Signal_App.ipa
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ios-build-${{ github.run_number }}
-          name: iOS Build ${{ github.run_number }}
-          files: ETC_Signal_App.ipa
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
