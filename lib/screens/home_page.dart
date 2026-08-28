@@ -20,9 +20,6 @@ class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
   final List<Widget> _pages = [
     const SignalPanel(),
-    const PositionsPage(),
-    const HistoryPage(),
-    const SettingsPage(),
   ];
 
   @override
@@ -71,9 +68,6 @@ class _HomePageState extends State<HomePage> {
             onDestinationSelected: (i) => setState(() => _currentIndex = i),
             destinations: const [
               NavigationDestination(icon: Icon(Icons.analytics), label: '信号'),
-              NavigationDestination(icon: Icon(Icons.account_balance_wallet), label: '持仓'),
-              NavigationDestination(icon: Icon(Icons.history), label: '历史'),
-              NavigationDestination(icon: Icon(Icons.settings), label: '设置'),
             ],
           ),
         );
