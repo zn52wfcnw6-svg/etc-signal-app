@@ -63,7 +63,7 @@ class EthSignalApp extends StatelessWidget {
 class _GlobalErrorWidget extends StatelessWidget {
   final Object error;
   final StackTrace? stackTrace;
-  final String library;
+  final String? library;
   final String context;
 
   const _GlobalErrorWidget({
