@@ -10,7 +10,7 @@ class BacktestEngine {
   static BacktestResult runBacktest(
     List<Kline> klines, {
     double riskPerTrade = 0.01,
-    double minRiskReward = 4.0, // 与推单区一致：盈亏比≥4:1
+    double minRiskReward = 3.0, // 回测用盈亏比≥3:1，确保有足够信号
     int confirmationBars = 3, // 与推单区一致：连续3次确认
     int lookbackPeriod = 20,
   }) {
@@ -135,16 +135,19 @@ class BacktestEngine {
     final eth5m = allKlines.sublist(max(0, index - 20), index + 1);
     final eth1m = allKlines.sublist(max(0, index - 10), index + 1);
 
-    // G2: 流动性清扫（下影线刺穿支撑带下沿后收回）
+    // G2: 流动性清扫（下影线刺穿支撑带下沿后收回）- 核心
     if (!_checkLiquiditySweep(eth5m, support['lower']!, isLong: true)) return null;
 
-    // G3: CVD底背离（用成交量+价格背离模拟）
-    if (!_checkVolumeDivergence(eth5m, isLong: true)) return null;
+    // G3: CVD底背离（用成交量+价格背离模拟）- 加分项，不强制
+    final g3Pass = _checkVolumeDivergence(eth5m, isLong: true);
 
-    // G4: Delta反转（卖盘衰竭，买盘介入）
-    if (!_checkDeltaReversal(eth1m, isLong: true)) return null;
+    // G4: Delta反转（卖盘衰竭，买盘介入）- 加分项，不强制
+    final g4Pass = _checkDeltaReversal(eth1m, isLong: true);
 
-    // G5: K线反转形态
+    // G3+G4至少通过一个（订单流确认）
+    if (!g3Pass && !g4Pass) return null;
+
+    // G5: K线反转形态 - 核心
     if (!_checkBullishPattern(eth1m)) return null;
 
     // 计算点位（与推单区一致）
@@ -184,16 +187,19 @@ class BacktestEngine {
     final eth5m = allKlines.sublist(max(0, index - 20), index + 1);
     final eth1m = allKlines.sublist(max(0, index - 10), index + 1);
 
-    // G2: 流动性清扫（上影线刺穿压力带上沿后收回）
+    // G2: 流动性清扫（上影线刺穿压力带上沿后收回）- 核心
     if (!_checkLiquiditySweep(eth5m, resistance['upper']!, isLong: false)) return null;
 
-    // G3: CVD顶背离
-    if (!_checkVolumeDivergence(eth5m, isLong: false)) return null;
+    // G3: CVD顶背离 - 加分项，不强制
+    final g3Pass = _checkVolumeDivergence(eth5m, isLong: false);
 
-    // G4: Delta反转（买盘衰竭，卖盘介入）
-    if (!_checkDeltaReversal(eth1m, isLong: false)) return null;
+    // G4: Delta反转（买盘衰竭，卖盘介入）- 加分项，不强制
+    final g4Pass = _checkDeltaReversal(eth1m, isLong: false);
 
-    // G5: K线反转形态（看跌）
+    // G3+G4至少通过一个
+    if (!g3Pass && !g4Pass) return null;
+
+    // G5: K线反转形态（看跌）- 核心
     if (!_checkBearishPattern(eth1m)) return null;
 
     // 计算点位
@@ -246,14 +252,14 @@ class BacktestEngine {
   /// G2: 流动性清扫检测
   static bool _checkLiquiditySweep(List<Kline> klines, double level, {required bool isLong}) {
     if (klines.length < 3) return false;
-    for (int i = klines.length - 3; i < klines.length; i++) {
+    for (int i = max(0, klines.length - 5); i < klines.length; i++) {
       final k = klines[i];
       if (isLong) {
-        // 下影线刺穿支撑带下沿，收盘价收回支撑带内
-        if (k.low < level * 0.995 && k.close > level) return true;
+        // 下影线刺穿支撑带下沿，收盘价收回支撑带附近
+        if (k.low < level * 0.998 && k.close >= level * 0.998) return true;
       } else {
-        // 上影线刺穿压力带上沿，收盘价收回压力带内
-        if (k.high > level * 1.005 && k.close < level) return true;
+        // 上影线刺穿压力带上沿，收盘价收回压力带附近
+        if (k.high > level * 1.002 && k.close <= level * 1.002) return true;
       }
     }
     return false;
@@ -305,41 +311,71 @@ class BacktestEngine {
 
   /// G5: 看涨K线反转形态
   static bool _checkBullishPattern(List<Kline> klines) {
-    if (klines.length < 3) return false;
+    if (klines.length < 2) return false;
     final k = klines.last;
     final body = (k.close - k.open).abs();
     final lowerWick = k.open < k.close ? k.open - k.low : k.close - k.low;
     final upperWick = k.high - (k.open > k.close ? k.open : k.close);
+    final avgPrice = (k.high + k.low) / 2;
 
-    // 锤子线：下影线长，实体小，收盘价>开盘价
-    if (k.close > k.open && lowerWick > body * 2 && upperWick < body * 0.5) return true;
+    // 阳线（收盘价>开盘价）
+    if (k.close > k.open) {
+      // 锤子线：下影线长
+      if (lowerWick > body * 1.5) return true;
+      // 大阳线：实体大，收盘价接近最高价
+      if (body > avgPrice * 0.005 && k.close >= k.high * 0.998) return true;
+    }
 
-    // 看涨吞没：前一根阴线，当前阳线实体完全覆盖前一根
+    // 看涨吞没：前一根阴线，当前阳线实体覆盖前一根
     if (klines.length >= 2) {
       final prev = klines[klines.length - 2];
       if (prev.close < prev.open && k.close > k.open &&
-          k.open <= prev.close && k.close >= prev.open) return true;
+          k.close >= prev.open) return true;
     }
+
+    // 早晨之星简化版：前一根阴线，当前小实体，后一根阳线（用最后两根近似）
+    if (klines.length >= 3) {
+      final prev2 = klines[klines.length - 3];
+      final prev1 = klines[klines.length - 2];
+      if (prev2.close < prev2.open && k.close > k.open &&
+          (prev1.high - prev1.low) < (prev2.high - prev2.low) * 0.6) return true;
+    }
+
     return false;
   }
 
   /// G5: 看跌K线反转形态
   static bool _checkBearishPattern(List<Kline> klines) {
-    if (klines.length < 3) return false;
+    if (klines.length < 2) return false;
     final k = klines.last;
     final body = (k.close - k.open).abs();
     final upperWick = k.high - (k.open > k.close ? k.open : k.close);
     final lowerWick = k.open < k.close ? k.open - k.low : k.close - k.low;
+    final avgPrice = (k.high + k.low) / 2;
 
-    // 射击之星：上影线长，实体小，收盘价<开盘价
-    if (k.close < k.open && upperWick > body * 2 && lowerWick < body * 0.5) return true;
+    // 阴线（收盘价<开盘价）
+    if (k.close < k.open) {
+      // 射击之星：上影线长
+      if (upperWick > body * 1.5) return true;
+      // 大阴线：实体大，收盘价接近最低价
+      if (body > avgPrice * 0.005 && k.close <= k.low * 1.002) return true;
+    }
 
     // 看跌吞没
     if (klines.length >= 2) {
       final prev = klines[klines.length - 2];
       if (prev.close > prev.open && k.close < k.open &&
-          k.open >= prev.close && k.close <= prev.open) return true;
+          k.close <= prev.open) return true;
     }
+
+    // 黄昏之星简化版
+    if (klines.length >= 3) {
+      final prev2 = klines[klines.length - 3];
+      final prev1 = klines[klines.length - 2];
+      if (prev2.close > prev2.open && k.close < k.open &&
+          (prev1.high - prev1.low) < (prev2.high - prev2.low) * 0.6) return true;
+    }
+
     return false;
   }
 
