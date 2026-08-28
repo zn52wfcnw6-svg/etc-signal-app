@@ -1,4 +1,4 @@
-import '../news/news_analyzer.dart';
+import './news/news_analyzer.dart';
 
 /// 信号质量等级
 enum SignalQuality {

@@ -1,5 +1,5 @@
 import 'dart:async';
-import '../models/market_data.dart';
+import '../../models/market_data.dart';
 
 /// 消息面类型
 enum NewsType {
