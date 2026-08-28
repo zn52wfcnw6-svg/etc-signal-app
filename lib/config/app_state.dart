@@ -29,6 +29,8 @@ class AppState extends ChangeNotifier {
   bool _isInitialized = false;
   String? _initError;
   bool _isRunning = false;
+  bool _klinesReady = false;
+  bool get klinesReady => _klinesReady;
 
   // 用户可配置参数
   String _riskPreference = 'moderate'; // conservative/moderate/aggressive
