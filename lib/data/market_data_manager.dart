@@ -31,6 +31,7 @@ class MarketDataManager {
   int _pollCount = 0;
   bool _klinesLoaded = false;
   bool get klinesLoaded => _klinesLoaded;
+  ValidatedMarketData? _latestEthData;
 
   Future<void> init() async {
     // 订单流初始化（带超时，不阻塞主流程）
@@ -54,7 +55,9 @@ class MarketDataManager {
 
   void _notifyKlinesLoaded() {
     // 通知监听器K线已加载
-    _ethDataController.add(_ethDataController.value);
+    if (_latestEthData != null && !_ethDataController.isClosed) {
+      _ethDataController.add(_latestEthData!);
+    }
   }
 
   Future<void> _preloadKlines() async {
@@ -131,6 +134,7 @@ class MarketDataManager {
       final ethResult = await _fetchAndValidate(AppConstants.ethSymbol);
       if (ethResult.data != null) {
         _ethData = ethResult.data;
+        _latestEthData = ethResult.data;
         _ethDataController.add(ethResult.data!);
       } else if (ethResult.isFailed) {
         _errorController.add('ETH行情校验失败: ${ethResult.reason}');
