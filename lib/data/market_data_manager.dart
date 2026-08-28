@@ -36,7 +36,7 @@ class MarketDataManager {
     } catch (_) {}
     // K线预加载（带总超时，并行加载关键周期）
     try {
-      await _preloadKlines().timeout(const Duration(seconds: 15), onTimeout: () {});
+      await _preloadKlines().timeout(const Duration(seconds: 30), onTimeout: () {});
     } catch (_) {}
   }
 
@@ -54,7 +54,7 @@ class MarketDataManager {
     await Future.wait(tasks.map((t) async {
       final symbol = t.$1 == 'eth' ? AppConstants.ethSymbol : AppConstants.btcSymbol;
       try {
-        await _fetchAndCacheKlines(symbol, t.$2, t.$3).timeout(const Duration(seconds: 8));
+        await _fetchAndCacheKlines(symbol, t.$2, t.$3).timeout(const Duration(seconds: 12));
       } catch (_) {}
     }));
     // 长周期K线后台异步加载，不阻塞初始化
@@ -70,7 +70,7 @@ class MarketDataManager {
     for (final t in tasks) {
       final symbol = t.$1 == 'eth' ? AppConstants.ethSymbol : AppConstants.btcSymbol;
       try {
-        await _fetchAndCacheKlines(symbol, t.$2, t.$3).timeout(const Duration(seconds: 10));
+        await _fetchAndCacheKlines(symbol, t.$2, t.$3).timeout(const Duration(seconds: 15));
       } catch (_) {}
     }
   }

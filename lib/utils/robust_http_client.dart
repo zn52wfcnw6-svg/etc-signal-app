@@ -9,17 +9,20 @@ class RobustHttpClient {
   /// CORS代理列表（按优先级排序，仅作为兜底）
   static const List<String> _proxies = [
     'https://api.allorigins.win/raw?url=',
+    'https://corsproxy.io/?url=',
+    'https://api.codetabs.com/v1/proxy?quest=',
     'https://thingproxy.freeboard.io/fetch/',
+    'https://proxy.cors.sh/',
   ];
 
   /// 最大重试次数
   static const int _maxRetries = 2;
 
   /// 单次请求超时（秒）
-  static const int _timeoutSeconds = 10;
+  static const int _timeoutSeconds = 15;
 
   /// 重试间隔（毫秒）
-  static const int _retryDelayMs = 800;
+  static const int _retryDelayMs = 500;
 
   /// 发送GET请求
   /// Web环境：优先直连 → 失败后尝试代理
