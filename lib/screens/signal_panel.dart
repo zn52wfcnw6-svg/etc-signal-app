@@ -299,6 +299,9 @@ class SignalPanel extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+              // SSS级多维度分析
+              _buildSSSAnalysis(sssResult),
             ] else ...[
               Container(
                 width: double.infinity,
