@@ -286,6 +286,37 @@ class SignalPanel extends StatelessWidget {
               const SizedBox(height: 8),
               _recRow('建议仓位', rec.positionText, Colors.purple),
               const SizedBox(height: 12),
+              // 预计入场区间详情
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.cyan.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.cyan.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.ads_click, color: Colors.cyan, size: 14),
+                        SizedBox(width: 4),
+                        Text('预计入场区间', style: TextStyle(fontSize: 12, color: Colors.cyan, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _recRow('开仓区间', rec.entryText, Colors.blue),
+                    const SizedBox(height: 6),
+                    _recRow('最佳入场', isLong ? '区间下沿附近' : '区间上沿附近', Colors.cyan),
+                    const SizedBox(height: 6),
+                    _recRow('分批策略', '首仓40% / 确认加30% / 盈利加30%', Colors.purple),
+                    const SizedBox(height: 6),
+                    _recRow('有效期', '下一次轮询前有效（8秒）', Colors.orange),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
@@ -306,6 +337,9 @@ class SignalPanel extends StatelessWidget {
               const SizedBox(height: 12),
               // SSS级多维度分析
               _buildSSSAnalysis(sssResult),
+              const SizedBox(height: 12),
+              // 情绪面深度分析
+              _buildSentimentDeepAnalysis(app),
             ] else ...[
               Container(
                 width: double.infinity,
@@ -788,6 +822,105 @@ class SignalPanel extends StatelessWidget {
         const SizedBox(width: 4),
         Text('${score.toStringAsFixed(0)}', style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.bold)),
       ],
+    );
+  }
+
+  /// 情绪面深度分析
+  Widget _buildSentimentDeepAnalysis(AppState app) {
+    final mdd = app.multiDimensionData;
+    final fearGreed = mdd.fearGreedIndex;
+    final longShort = mdd.longShortRatio;
+    final fundingRate = mdd.exchangeFlow; // 临时存储资金费率
+    final openInterest = mdd.openInterestChange; // 临时存储持仓量
+
+    // 贪婪恐惧指数解读
+    String fearGreedLabel;
+    Color fearGreedColor;
+    if (fearGreed >= 75) {
+      fearGreedLabel = '极度贪婪（警惕见顶）';
+      fearGreedColor = Colors.red;
+    } else if (fearGreed >= 55) {
+      fearGreedLabel = '贪婪（偏多）';
+      fearGreedColor = Colors.orange;
+    } else if (fearGreed >= 45) {
+      fearGreedLabel = '中性';
+      fearGreedColor = Colors.grey;
+    } else if (fearGreed >= 25) {
+      fearGreedLabel = '恐惧（偏空）';
+      fearGreedColor = Colors.blue;
+    } else {
+      fearGreedLabel = '极度恐惧（警惕见底）';
+      fearGreedColor = Colors.green;
+    }
+
+    // 多空比解读
+    String longShortLabel;
+    Color longShortColor;
+    if (longShort > 1.5) {
+      longShortLabel = '多头拥挤（警惕回调）';
+      longShortColor = Colors.red;
+    } else if (longShort > 1.2) {
+      longShortLabel = '偏多';
+      longShortColor = Colors.orange;
+    } else if (longShort >= 0.8) {
+      longShortLabel = '均衡';
+      longShortColor = Colors.grey;
+    } else if (longShort >= 0.5) {
+      longShortLabel = '偏空';
+      longShortColor = Colors.blue;
+    } else {
+      longShortLabel = '空头拥挤（警惕反弹）';
+      longShortColor = Colors.green;
+    }
+
+    // 资金费率解读
+    String fundingLabel;
+    Color fundingColor;
+    if (fundingRate > 0.05) {
+      fundingLabel = '多头付费高（多头拥挤）';
+      fundingColor = Colors.red;
+    } else if (fundingRate > 0.01) {
+      fundingLabel = '正费率（偏多）';
+      fundingColor = Colors.orange;
+    } else if (fundingRate >= -0.01) {
+      fundingLabel = '中性';
+      fundingColor = Colors.grey;
+    } else if (fundingRate >= -0.05) {
+      fundingLabel = '负费率（偏空）';
+      fundingColor = Colors.blue;
+    } else {
+      fundingLabel = '空头付费高（空头拥挤）';
+      fundingColor = Colors.green;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.pink.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.pink.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.psychology, color: Colors.pink, size: 14),
+              SizedBox(width: 4),
+              Text('情绪面深度分析', style: TextStyle(fontSize: 12, color: Colors.pink, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _recRow('贪婪恐惧指数', '${fearGreed.toStringAsFixed(0)} - $fearGreedLabel', fearGreedColor),
+          const SizedBox(height: 6),
+          _recRow('多空比', longShort > 0 ? '${longShort.toStringAsFixed(2)} - $longShortLabel' : '未接入', longShort > 0 ? longShortColor : Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('资金费率', fundingRate != 0 ? '${(fundingRate / 10000).toStringAsFixed(4)}% - $fundingLabel' : '未接入', fundingRate != 0 ? fundingColor : Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('持仓量OI', openInterest > 0 ? '${(openInterest / 1000).toStringAsFixed(1)}K 张' : '未接入', Colors.teal),
+        ],
+      ),
     );
   }
 
