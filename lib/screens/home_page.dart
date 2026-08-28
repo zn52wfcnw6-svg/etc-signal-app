@@ -8,6 +8,7 @@ import 'signal_panel.dart';
 import 'positions_page.dart';
 import 'history_page.dart';
 import 'settings_page.dart';
+import 'performance_monitor_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -22,6 +23,7 @@ class _HomePageState extends State<HomePage> {
     const SignalPanel(),
     const PositionsPage(),
     const HistoryPage(),
+    const PerformanceMonitorPage(),
     const SettingsPage(),
   ];
 
@@ -73,6 +75,7 @@ class _HomePageState extends State<HomePage> {
               NavigationDestination(icon: Icon(Icons.analytics), label: '信号'),
               NavigationDestination(icon: Icon(Icons.account_balance_wallet), label: '持仓'),
               NavigationDestination(icon: Icon(Icons.history), label: '历史'),
+              NavigationDestination(icon: Icon(Icons.monitor_heart), label: '监控'),
               NavigationDestination(icon: Icon(Icons.settings), label: '设置'),
             ],
           ),

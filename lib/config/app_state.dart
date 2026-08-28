@@ -11,6 +11,7 @@ import '../engine/market_regime/market_regime.dart';
 import '../engine/multi_timeframe/mtf_analyzer.dart';
 import '../engine/order_flow/deep_order_flow.dart';
 import '../monitor/self_healing.dart';
+import '../monitor/performance_monitor.dart';
 import '../storage/database_helper.dart';
 import '../models/signal.dart';
 import '../models/position.dart';
@@ -143,6 +144,8 @@ class AppState extends ChangeNotifier {
       selfHealing = SelfHealingMonitor(database);
       await marketData.init();
       _registerHealthChecks();
+      // 监听K线加载状态
+      _checkKlinesReady();
 
       _ethSub = marketData.ethDataStream.listen((data) {
         _ethPrice = data.price;
@@ -197,6 +200,30 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// 检查K线是否加载完成，完成后触发信号计算
+  Future<void> _checkKlinesReady() async {
+    // 轮询检查K线加载状态，最多等待60秒
+    for (int i = 0; i < 60; i++) {
+      await Future.delayed(const Duration(seconds: 1));
+      if (marketData.klinesLoaded) {
+        _klinesReady = true;
+        _statusMessage = 'K线数据加载完成，开始信号分析';
+        notifyListeners();
+        // K线加载完成后立即触发一次信号计算
+        if (signalEngine != null) {
+          try {
+            await signalEngine!.tick();
+          } catch (_) {}
+        }
+        return;
+      }
+    }
+    // 超时后也标记为就绪，使用已有数据
+    _klinesReady = true;
+    _statusMessage = 'K线数据部分加载，使用已有数据分析';
+    notifyListeners();
+  }
+
   void _registerHealthChecks() {
     selfHealing?.registerCheck('data', () async {
       final eth = marketData.ethData;
@@ -231,8 +258,12 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _tick() async {
+    final timer = PerformanceTimer('tick_total');
+    PerformanceMonitor().recordTick();
     // 风控检查
+    final riskTimer = PerformanceTimer('risk_check');
     await riskManager?.checkRiskConditions();
+    riskTimer.finish();
 
     // 更新自适应参数给风控
     final eth5m = marketData.getEth5m();
@@ -254,12 +285,17 @@ class AppState extends ChangeNotifier {
     }
 
     // 信号引擎（内部整合所有分析模块）
+    final signalTimer = PerformanceTimer('signal_engine');
     await signalEngine?.tick();
+    signalTimer.finish();
+    timer.finish();
   }
 
   Future<void> manualRefresh() async {
+    final timer = PerformanceTimer('manual_refresh');
     await marketData.manualRefresh();
     await _tick();
+    timer.finish();
   }
 
   void setAccountBalance(double balance) {

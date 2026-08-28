@@ -3,6 +3,7 @@ import 'apis/exchange_api.dart';
 import 'market_validator.dart';
 import 'websocket_manager.dart';
 import '../models/market_data.dart';
+import '../monitor/performance_monitor.dart';
 import '../utils/constants.dart';
 
 /// 行情数据管理器：统一调度5家API、交叉校验、K线缓存
@@ -28,16 +29,32 @@ class MarketDataManager {
   bool _isRunning = false;
   bool _isDisposed = false;
   int _pollCount = 0;
+  bool _klinesLoaded = false;
+  bool get klinesLoaded => _klinesLoaded;
 
   Future<void> init() async {
     // 订单流初始化（带超时，不阻塞主流程）
     try {
       await _orderFlowManager.init().timeout(const Duration(seconds: 5), onTimeout: () {});
     } catch (_) {}
-    // K线预加载（带总超时，并行加载关键周期）
+    // K线预加载改为后台异步，不阻塞初始化
+    _preloadKlinesAsync();
+  }
+
+  /// 后台异步预加载K线，不阻塞主界面
+  Future<void> _preloadKlinesAsync() async {
     try {
       await _preloadKlines().timeout(const Duration(seconds: 45), onTimeout: () {});
-    } catch (_) {}
+      _klinesLoaded = true;
+      _notifyKlinesLoaded();
+    } catch (_) {
+      _klinesLoaded = true; // 即使部分失败也标记为已加载，避免一直等待
+    }
+  }
+
+  void _notifyKlinesLoaded() {
+    // 通知监听器K线已加载
+    _ethDataController.add(_ethDataController.value);
   }
 
   Future<void> _preloadKlines() async {

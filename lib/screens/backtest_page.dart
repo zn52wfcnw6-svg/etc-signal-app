@@ -15,6 +15,8 @@ class BacktestPage extends StatefulWidget {
 class _BacktestPageState extends State<BacktestPage> {
   BacktestResult? _result;
   bool _isRunning = false;
+  String _selectedInterval = '4h';
+  final List<String> _intervals = ['1h', '4h', '1d'];
 
   @override
   void initState() {
@@ -25,12 +27,23 @@ class _BacktestPageState extends State<BacktestPage> {
   Future<void> _runBacktest() async {
     setState(() => _isRunning = true);
     final app = context.read<AppState>();
-    final klines = app.marketData.getEth4h();
+    var klines = <dynamic>[];
+    switch (_selectedInterval) {
+      case '1h':
+        klines = app.marketData.getEth1h();
+        break;
+      case '4h':
+        klines = app.marketData.getEth4h();
+        break;
+      case '1d':
+        klines = app.marketData.getEth1d();
+        break;
+    }
     if (klines.length < 50) {
       setState(() => _isRunning = false);
       return;
     }
-    final result = BacktestEngine.runBacktest(klines);
+    final result = BacktestEngine.runBacktest(klines.cast());
     setState(() {
       _result = result;
       _isRunning = false;
@@ -44,6 +57,21 @@ class _BacktestPageState extends State<BacktestPage> {
         title: const Text('历史回测'),
         backgroundColor: const Color(0xFF1A1A1A),
         actions: [
+          DropdownButton<String>(
+            value: _selectedInterval,
+            dropdownColor: Colors.grey[900],
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+            items: _intervals.map((interval) => DropdownMenuItem(
+              value: interval,
+              child: Text(interval.toUpperCase()),
+            )).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _selectedInterval = value);
+                _runBacktest();
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _runBacktest,
