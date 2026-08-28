@@ -102,12 +102,12 @@ class SignalHistoryTracker {
       pendingSignals: _pendingSignals.length,
       winningTrades: wins.length,
       losingTrades: losses.length,
-      winRate: closed.isNotEmpty ? wins.length / closed.length : 0,
+      winRate: closed.isNotEmpty ? (wins.length / closed.length).toDouble() : 0.0,
       totalPnl: totalPnl,
       avgWin: avgWin,
       avgLoss: avgLoss,
-      profitFactor: avgLoss > 0 ? avgWin / avgLoss : 0,
-      highScoreWinRate: highScore.isNotEmpty ? highWins / highScore.length : 0,
+      profitFactor: avgLoss > 0 ? (avgWin / avgLoss).toDouble() : 0.0,
+      highScoreWinRate: highScore.isNotEmpty ? (highWins / highScore.length).toDouble() : 0.0,
       highScoreCount: highScore.length,
     );
   }
