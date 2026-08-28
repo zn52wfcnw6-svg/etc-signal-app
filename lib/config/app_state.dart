@@ -144,17 +144,17 @@ class AppState extends ChangeNotifier {
       _btcSub = marketData.btcDataStream.listen((data) {
         _btcPrice = data.price;
       });
-      _signalSub = signalEngine.signalStream.listen((signal) {
+      _signalSub = signalEngine?.signalStream.listen((signal) {
         _currentSignal = signal;
         try { database.insertSignal(signal); } catch (_) {}
         notifyListeners();
       });
-      _analysisSub = signalEngine.analysisStream.listen((analysis) {
+      _analysisSub = signalEngine?.analysisStream.listen((analysis) {
         _analysis = analysis;
         _statusMessage = analysis.statusMessage;
         notifyListeners();
       });
-      _riskSub = riskManager.riskStream.listen((state) {
+      _riskSub = riskManager?.riskStream.listen((state) {
         _riskState = state;
         notifyListeners();
       });
@@ -210,12 +210,12 @@ class AppState extends ChangeNotifier {
 
   Future<void> _tick() async {
     // 风控检查
-    await riskManager.checkRiskConditions();
+    await riskManager?.checkRiskConditions();
 
     // 更新自适应参数给风控
     final eth5m = marketData.getEth5m();
     final adaptive = AdaptiveParams.calculate(eth5m);
-    riskManager.setAdaptiveParams(adaptive);
+    riskManager?.setAdaptiveParams(adaptive);
 
     // 计算ETH/BTC强弱比
     if (_ethPrice > 0 && _btcPrice > 0) {
@@ -241,12 +241,12 @@ class AppState extends ChangeNotifier {
   }
 
   void setAccountBalance(double balance) {
-    riskManager.setAccountBalance(balance);
+    riskManager?.setAccountBalance(balance);
     notifyListeners();
   }
 
   void addPosition(Position pos) {
-    riskManager.addPosition(pos);
+    riskManager?.addPosition(pos);
     database.insertPosition(pos);
     notifyListeners();
   }
