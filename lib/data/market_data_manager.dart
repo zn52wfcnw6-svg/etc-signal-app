@@ -36,25 +36,25 @@ class MarketDataManager {
     } catch (_) {}
     // K线预加载（带总超时，并行加载关键周期）
     try {
-      await _preloadKlines().timeout(const Duration(seconds: 30), onTimeout: () {});
+      await _preloadKlines().timeout(const Duration(seconds: 45), onTimeout: () {});
     } catch (_) {}
   }
 
   Future<void> _preloadKlines() async {
     // 只预加载最关键的周期，并行加载加快速度
     final tasks = [
-      ('eth', '1m', 30),
-      ('eth', '5m', 30),
-      ('eth', '1h', 20),
-      ('eth', '4h', 20),
-      ('btc', '5m', 30),
-      ('btc', '15m', 20),
+      ('eth', '1m', 100),
+      ('eth', '5m', 100),
+      ('eth', '1h', 100),
+      ('eth', '4h', 100),
+      ('btc', '5m', 100),
+      ('btc', '15m', 100),
     ];
     // 并行加载
     await Future.wait(tasks.map((t) async {
       final symbol = t.$1 == 'eth' ? AppConstants.ethSymbol : AppConstants.btcSymbol;
       try {
-        await _fetchAndCacheKlines(symbol, t.$2, t.$3).timeout(const Duration(seconds: 12));
+        await _fetchAndCacheKlines(symbol, t.$2, t.$3).timeout(const Duration(seconds: 15));
       } catch (_) {}
     }));
     // 长周期K线后台异步加载，不阻塞初始化
@@ -64,8 +64,8 @@ class MarketDataManager {
   Future<void> _preloadLongCycleKlines() async {
     // 后台异步加载长周期K线
     final tasks = [
-      ('eth', '1d', 20),
-      ('btc', '4h', 20),
+      ('eth', '1d', 100),
+      ('btc', '4h', 100),
     ];
     for (final t in tasks) {
       final symbol = t.$1 == 'eth' ? AppConstants.ethSymbol : AppConstants.btcSymbol;
@@ -137,16 +137,16 @@ class MarketDataManager {
       _pollCount++;
       if (_pollCount % 5 == 0) {
         if (!_hasEnoughKlines(AppConstants.ethSymbol, '4h', 10)) {
-          await _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 30);
+          await _fetchAndCacheKlines(AppConstants.ethSymbol, '4h', 100);
         }
         if (!_hasEnoughKlines(AppConstants.ethSymbol, '1d', 10)) {
-          await _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 30);
+          await _fetchAndCacheKlines(AppConstants.ethSymbol, '1d', 100);
         }
         if (!_hasEnoughKlines(AppConstants.ethSymbol, '1h', 10)) {
-          await _fetchAndCacheKlines(AppConstants.ethSymbol, '1h', 30);
+          await _fetchAndCacheKlines(AppConstants.ethSymbol, '1h', 100);
         }
         if (!_hasEnoughKlines(AppConstants.btcSymbol, '4h', 10)) {
-          await _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 30);
+          await _fetchAndCacheKlines(AppConstants.btcSymbol, '4h', 100);
         }
       }
     } catch (e) {

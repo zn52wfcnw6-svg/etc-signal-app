@@ -126,7 +126,7 @@ class AppState extends ChangeNotifier {
     if (_isInitialized) return;
     // 总的初始化超时保护，确保不会无限卡住
     final initCompleter = Completer<void>();
-    final timeoutTimer = Timer(const Duration(seconds: 30), () {
+    final timeoutTimer = Timer(const Duration(seconds: 60), () {
       if (!initCompleter.isCompleted) {
         initCompleter.completeError(TimeoutException('初始化超时，使用降级模式'));
       }
