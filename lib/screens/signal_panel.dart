@@ -214,9 +214,9 @@ class SignalPanel extends StatelessWidget {
     final technicalScore = isWait ? 50.0 : (rec.isConfirmed ? 85.0 : 70.0);
     final sssResult = app.multiDimensionData.calculateSSSScore(direction, technicalScore: technicalScore);
     
-    // SSS级信号质量过滤：<80分强制观望，只输出高置信度信号
+    // 取消80分限制，所有信号都显示预计入场区间，评分仅作参考
     final isHighConfidence = sssResult.isHighConfidence;
-    final showSignal = isHighConfidence && (isLong || isShort);
+    final showSignal = isLong || isShort; // 取消评分限制，所有信号都显示
 
     Color accentColor;
     if (showSignal && isLong) {
@@ -262,6 +262,9 @@ class SignalPanel extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            // 预判区域：关键价位和预计评分
+            _buildPredictionZone(app),
             const SizedBox(height: 8),
             if (rec.isConfirmed)
               Container(
@@ -919,6 +922,75 @@ class SignalPanel extends StatelessWidget {
           _recRow('资金费率', fundingRate != 0 ? '${(fundingRate / 10000).toStringAsFixed(4)}% - $fundingLabel' : '未接入', fundingRate != 0 ? fundingColor : Colors.grey),
           const SizedBox(height: 6),
           _recRow('持仓量OI', openInterest > 0 ? '${(openInterest / 1000).toStringAsFixed(1)}K 张' : '未接入', Colors.teal),
+        ],
+      ),
+    );
+  }
+
+  /// 预判区域：关键价位和预计评分/胜率
+  Widget _buildPredictionZone(AppState app) {
+    final currentPrice = app.currentPrice ?? 0;
+    final longCycle = app.longCycleResult;
+    final nearestSupport = longCycle?.nearestSupport?.price ?? 0;
+    final nearestResistance = longCycle?.nearestResistance?.price ?? 0;
+
+    // 基于当前市场环境估算到达关键位置时的评分
+    // 假设价格到达支撑/压力位时技术面条件改善，评分+15分
+    final baseScore = app.multiDimensionData.calculateSSSScore(
+      nearestSupport < currentPrice ? 'long' : 'short',
+      technicalScore: 70,
+    ).totalScore;
+    final predictedLongScore = (baseScore + 15).clamp(0, 100);
+    final predictedShortScore = (baseScore + 15).clamp(0, 100);
+
+    // 根据评分估算胜率
+    String winRateFromScore(double score) {
+      if (score >= 85) return '≥70%';
+      if (score >= 80) return '65-70%';
+      if (score >= 75) return '60-65%';
+      if (score >= 70) return '55-60%';
+      if (score >= 60) return '50-55%';
+      return '<50%';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.amber.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.amber.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.track_changes, color: Colors.amber, size: 14),
+              SizedBox(width: 4),
+              Text('预判区域（关键价位）', style: TextStyle(fontSize: 12, color: Colors.amber, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _recRow('当前价格', '\$${currentPrice.toStringAsFixed(2)}', Colors.white),
+          const SizedBox(height: 6),
+          if (nearestSupport > 0) ...[
+            _recRow('支撑位（做多）', '\$${nearestSupport.toStringAsFixed(2)}', Colors.green),
+            const SizedBox(height: 4),
+            _recRow('  预计评分', '${predictedLongScore.toStringAsFixed(0)}分', Colors.green),
+            const SizedBox(height: 4),
+            _recRow('  预计胜率', winRateFromScore(predictedLongScore), Colors.green),
+            const SizedBox(height: 6),
+          ],
+          if (nearestResistance > 0) ...[
+            _recRow('压力位（做空）', '\$${nearestResistance.toStringAsFixed(2)}', Colors.red),
+            const SizedBox(height: 4),
+            _recRow('  预计评分', '${predictedShortScore.toStringAsFixed(0)}分', Colors.red),
+            const SizedBox(height: 4),
+            _recRow('  预计胜率', winRateFromScore(predictedShortScore), Colors.red),
+          ],
+          if (nearestSupport == 0 && nearestResistance == 0)
+            const Text('关键价位计算中...', style: TextStyle(fontSize: 11, color: Colors.grey)),
         ],
       ),
     );
