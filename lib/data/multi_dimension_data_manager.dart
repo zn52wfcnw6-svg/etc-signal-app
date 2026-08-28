@@ -103,21 +103,50 @@ class MultiDimensionDataManager {
     }
   }
 
-  /// 获取宏观面数据
+  /// 获取宏观面数据（接入Yahoo Finance真实API）
   Future<void> _fetchMacroData() async {
     try {
-      // 标普500（使用Yahoo Finance API，通过CORS代理）
-      // 由于API限制，这里使用模拟数据，实际部署时可接入真实API
-      _sp500Change = 0.2; // 模拟
-      _dxyChange = -0.1; // 模拟
-      _treasuryYield = 4.2; // 模拟
-      _goldChange = 0.1; // 模拟
+      // 标普500（Yahoo Finance API，通过CORS代理）
+      final sp500Url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?interval=1d&range=2d';
+      final sp500Data = await _fetchWithProxy(sp500Url);
+      if (sp500Data != null && sp500Data['chart']?['result'] != null) {
+        final results = sp500Data['chart']['result'] as List;
+        if (results.isNotEmpty) {
+          final meta = results[0]['meta'];
+          final regularMarketPrice = meta?['regularMarketPrice']?.toDouble() ?? 0;
+          final previousClose = meta?['chartPreviousClose']?.toDouble() ?? regularMarketPrice;
+          if (previousClose > 0) {
+            _sp500Change = ((regularMarketPrice - previousClose) / previousClose * 100);
+          }
+        }
+      }
+      // 黄金价格（Yahoo Finance API，通过CORS代理）
+      final goldUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF?interval=1d&range=2d';
+      final goldData = await _fetchWithProxy(goldUrl);
+      if (goldData != null && goldData['chart']?['result'] != null) {
+        final results = goldData['chart']['result'] as List;
+        if (results.isNotEmpty) {
+          final meta = results[0]['meta'];
+          final regularMarketPrice = meta?['regularMarketPrice']?.toDouble() ?? 0;
+          final previousClose = meta?['chartPreviousClose']?.toDouble() ?? regularMarketPrice;
+          if (previousClose > 0) {
+            _goldChange = ((regularMarketPrice - previousClose) / previousClose * 100);
+          }
+        }
+      }
+      // 美元指数和美债收益率暂未接入，设为0
+      _dxyChange = 0;
+      _treasuryYield = 0;
     } catch (_) {
-      // 使用默认值
+      // 获取失败时使用默认值0
+      _sp500Change = 0;
+      _goldChange = 0;
+      _dxyChange = 0;
+      _treasuryYield = 0;
     }
   }
 
-  /// 获取情绪面数据
+  /// 获取情绪面数据（接入贪婪恐惧指数+Binance多空比真实API）
   Future<void> _fetchSentimentData() async {
     try {
       // 贪婪恐惧指数（使用alternative.me免费API，通过CORS代理）
@@ -126,24 +155,49 @@ class MultiDimensionDataManager {
       if (data != null && data['data'] != null && data['data'].isNotEmpty) {
         _fearGreedIndex = double.tryParse(data['data'][0]['value'] ?? '50') ?? 50;
       }
-      // 多空比和杠杆率使用模拟数据
-      _longShortRatio = 1.2;
-      _leverageRatio = 1.5;
+      // Binance ETH多空比（真实API，通过CORS代理）
+      final lsUrl = 'https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=ETHUSDT&period=1h&limit=1';
+      final lsData = await _fetchWithProxy(lsUrl);
+      if (lsData != null && lsData is List && lsData.isNotEmpty) {
+        _longShortRatio = double.tryParse(lsData[0]['longShortRatio'] ?? '1') ?? 1;
+      }
+      // 杠杆率暂未接入真实API，设为0
+      _leverageRatio = 0;
     } catch (_) {
       _fearGreedIndex = 50;
+      _longShortRatio = 0;
+      _leverageRatio = 0;
     }
   }
 
-  /// 获取资金面数据
+  /// 获取资金面数据（接入OKX资金费率+持仓量真实API，巨鲸/资金流未接入）
   Future<void> _fetchCapitalData() async {
     try {
-      // 资金面数据使用模拟数据（实际需要接入Glassnode、CryptoQuant等付费API）
-      _exchangeFlow = -50; // 模拟：交易所净流出50M
-      _whaleAccumulation = 0.3; // 模拟：巨鲸增持
-      _stablecoinMarketCapChange = 0.5; // 模拟：稳定币市值增加0.5%
-      _openInterestChange = 3.0; // 模拟：持仓量增加3%
+      // OKX ETH永续资金费率（真实API，通过CORS代理）
+      final fundingUrl = 'https://www.okx.com/api/v5/public/funding-rate?instId=ETH-USDT-SWAP';
+      final fundingData = await _fetchWithProxy(fundingUrl);
+      if (fundingData != null && fundingData['data'] != null && fundingData['data'].isNotEmpty) {
+        final fundingRate = double.tryParse(fundingData['data'][0]['fundingRate'] ?? '0') ?? 0;
+        // 资金费率转换为百分比，正为多头付费，负为空头付费
+        _exchangeFlow = fundingRate * 10000; // 用exchangeFlow字段临时存储资金费率
+      }
+      // OKX ETH永续持仓量（真实API，通过CORS代理）
+      final oiUrl = 'https://www.okx.com/api/v5/public/open-interest?instId=ETH-USDT-SWAP';
+      final oiData = await _fetchWithProxy(oiUrl);
+      if (oiData != null && oiData['data'] != null && oiData['data'].isNotEmpty) {
+        final oi = double.tryParse(oiData['data'][0]['oi'] ?? '0') ?? 0;
+        // 用openInterestChange字段临时存储持仓量
+        _openInterestChange = oi;
+      }
+      // 巨鲸增持和稳定币市值变化未接入真实API（需要付费），设为0
+      _whaleAccumulation = 0;
+      _stablecoinMarketCapChange = 0;
     } catch (_) {
-      // 使用默认值
+      // 获取失败时使用默认值0
+      _exchangeFlow = 0;
+      _openInterestChange = 0;
+      _whaleAccumulation = 0;
+      _stablecoinMarketCapChange = 0;
     }
   }
 
