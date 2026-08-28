@@ -44,8 +44,8 @@ class SignalPanel extends StatelessWidget {
               if (app.marketData.getEth5m().isNotEmpty)
                 KlineChart(
                   klines: app.marketData.getEth5m(),
-                  supportLevels: app.longCycleResult?.supportLevels.map((e) => e.mid).toList(),
-                  resistanceLevels: app.longCycleResult?.resistanceLevels.map((e) => e.mid).toList(),
+                  supportLevels: app.longCycleResult?.supportLevels?.map((e) => e.mid).toList(),
+                  resistanceLevels: app.longCycleResult?.resistanceLevels?.map((e) => e.mid).toList(),
                   entryLower: app.tradeRecommendation.entryLower,
                   entryUpper: app.tradeRecommendation.entryUpper,
                   stopLoss: app.tradeRecommendation.stopLoss,
