@@ -3,42 +3,26 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'config/app_state.dart';
 import 'screens/home_page.dart';
+import 'widgets/global_error_detector.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 判断是否为非致命网络错误
-  bool isNonFatalError(String error) {
-    final lower = error.toLowerCase();
-    return lower.contains('websocket') ||
-        lower.contains('socket') ||
-        lower.contains('http') ||
-        lower.contains('network') ||
-        lower.contains('timeout') ||
-        lower.contains('connection') ||
-        lower.contains('failed to connect') ||
-        lower.contains('connection refused') ||
-        lower.contains('handshake') ||
-        lower.contains('certificate');
-  }
 
-  // 全局错误处理 - 忽略非致命错误
+  // 全局错误处理 - 捕获所有错误并显示
   FlutterError.onError = (FlutterErrorDetails details) {
-    final errorStr = details.exception.toString();
-    if (isNonFatalError(errorStr)) return;
     FlutterError.presentError(details);
+    GlobalErrorDetector.detectorKey.currentState?.reportError(
+      details.exception,
+      details.stack,
+    );
   };
-  
+
   runZonedGuarded(
     () {
       runApp(const EthSignalApp());
     },
     (Object error, StackTrace stack) {
-      final errorStr = error.toString();
-      if (isNonFatalError(errorStr)) return;
-      // 致命错误输出到控制台
-      debugPrint('Fatal Error: $errorStr');
-      debugPrint('Stack: $stack');
+      GlobalErrorDetector.detectorKey.currentState?.reportError(error, stack);
     },
   );
 }
@@ -63,7 +47,10 @@ class EthSignalApp extends StatelessWidget {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
-        home: const HomePage(),
+        home: GlobalErrorDetector(
+          key: GlobalErrorDetector.detectorKey,
+          child: const HomePage(),
+        ),
       ),
     );
   }
