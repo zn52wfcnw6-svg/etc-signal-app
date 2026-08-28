@@ -3,209 +3,397 @@ import '../models/market_data.dart';
 import '../models/backtest_result.dart';
 import '../utils/indicators.dart';
 
-/// 历史回测引擎
-/// S级标准：基于历史K线模拟信号生成和交易执行
+/// 历史回测引擎 - 完全复现推单区6道闸门逻辑
+/// S级标准：与实际推单区SignalEngine一致的信号检测逻辑
 class BacktestEngine {
   /// 运行回测
   static BacktestResult runBacktest(
     List<Kline> klines, {
-    double riskPerTrade = 0.01, // 每笔风险1%
-    double minRiskReward = 3.0, // 最低盈亏比3:1
-    int confirmationBars = 3, // 确认K线数
-    int lookbackPeriod = 20, // 关键位回看周期
+    double riskPerTrade = 0.01,
+    double minRiskReward = 4.0, // 与推单区一致：盈亏比≥4:1
+    int confirmationBars = 3, // 与推单区一致：连续3次确认
+    int lookbackPeriod = 20,
   }) {
-    if (klines.length < lookbackPeriod + confirmationBars + 10) {
+    if (klines.length < lookbackPeriod + confirmationBars + 50) {
       return BacktestResult(
-        totalSignals: 0,
-        winningTrades: 0,
-        losingTrades: 0,
-        winRate: 0,
-        avgProfit: 0,
-        avgLoss: 0,
-        profitFactor: 0,
-        maxDrawdown: 0,
-        totalReturn: 0,
-        sharpeRatio: 0,
-        trades: const [],
+        totalSignals: 0, winningTrades: 0, losingTrades: 0,
+        winRate: 0, avgProfit: 0, avgLoss: 0, profitFactor: 0,
+        maxDrawdown: 0, totalReturn: 0, sharpeRatio: 0, trades: const [],
       );
     }
 
     final trades = <BacktestTrade>[];
-    double equity = 10000; // 初始资金10000
+    double equity = 10000;
     final equityCurve = <double>[equity];
     double peakEquity = equity;
     double maxDrawdown = 0;
 
     int i = lookbackPeriod;
-
-    while (i < klines.length - confirmationBars - 5) {
-      // 计算关键位
+    while (i < klines.length - confirmationBars - 50) {
       final lookback = klines.sublist(i - lookbackPeriod, i);
-      final support = _findSupport(lookback);
-      final resistance = _findResistance(lookback);
       final currentPrice = klines[i].close;
 
-      // 计算RSI
-      final rsi = Indicators.rsi(
-        lookback.map((k) => k.close).toList(),
-        14,
+      // 计算支撑带和压力带
+      final support = _calcSupportBand(lookback);
+      final resistance = _calcResistanceBand(lookback);
+
+      if (support == null || resistance == null) {
+        i++;
+        continue;
+      }
+
+      // ===== 多头信号检测（6道闸门）=====
+      final longSignal = _detectLongSignal(
+        lookback, klines, i, support, resistance, currentPrice, minRiskReward,
       );
-      final currentRsi = rsi.isNotEmpty ? (rsi.last ?? 50.0) : 50.0;
 
-      // 检测信号
+      // ===== 空头信号检测（6道闸门）=====
+      final shortSignal = _detectShortSignal(
+        lookback, klines, i, support, resistance, currentPrice, minRiskReward,
+      );
+
       String? direction;
-      double? entryPrice;
-      double? stopLoss;
-      double? tp1;
-      double? tp2;
+      Map<String, dynamic>? signal;
 
-      // 做多信号：价格接近支撑位 + RSI超卖
-      if (support != null &&
-          (currentPrice - support!).abs() / support! < 0.02 &&
-          currentRsi < 35) {
+      if (longSignal != null) {
         direction = 'long';
-        entryPrice = currentPrice;
-        stopLoss = support! * 0.985;
-        final risk = entryPrice - stopLoss;
-        tp1 = entryPrice + risk * 1.5;
-        tp2 = entryPrice + risk * 3.0;
-      }
-
-      // 做空信号：价格接近压力位 + RSI超买
-      if (resistance != null &&
-          (resistance! - currentPrice).abs() / currentPrice < 0.02 &&
-          currentRsi > 65) {
+        signal = longSignal;
+      } else if (shortSignal != null) {
         direction = 'short';
-        entryPrice = currentPrice;
-        stopLoss = resistance! * 1.015;
-        final risk = stopLoss - entryPrice;
-        tp1 = entryPrice - risk * 1.5;
-        tp2 = entryPrice - risk * 3.0;
+        signal = shortSignal;
       }
 
-      if (direction != null && entryPrice != null && stopLoss != null && tp1 != null && tp2 != null) {
-        // 确认信号（连续N根K线维持方向）
+      if (direction != null && signal != null) {
+        // G6: 连续3根K线确认
         bool confirmed = true;
         for (int j = 1; j <= confirmationBars; j++) {
-          if (i + j >= klines.length) {
-            confirmed = false;
-            break;
-          }
+          if (i + j >= klines.length) { confirmed = false; break; }
           final bar = klines[i + j];
-          if (direction == 'long' && bar.close < stopLoss) {
-            confirmed = false;
-            break;
-          }
-          if (direction == 'short' && bar.close > stopLoss) {
-            confirmed = false;
-            break;
-          }
+          final sl = signal['stopLoss'] as double;
+          if (direction == 'long' && bar.low <= sl) { confirmed = false; break; }
+          if (direction == 'short' && bar.high >= sl) { confirmed = false; break; }
         }
 
         if (confirmed) {
-          // 模拟交易执行
           final entryIndex = i + confirmationBars;
           final result = _simulateTrade(
-            klines,
-            entryIndex,
-            direction!,
-            entryPrice!,
-            stopLoss!,
-            tp1!,
-            tp2!,
-            equity,
-            riskPerTrade,
+            klines, entryIndex, direction!, signal, equity, riskPerTrade,
           );
-
           if (result != null) {
             trades.add(result);
             equity += result.pnl;
             equityCurve.add(equity);
             if (equity > peakEquity) peakEquity = equity;
-            final drawdown = (peakEquity - equity) / peakEquity;
-            if (drawdown > maxDrawdown) maxDrawdown = drawdown;
-            i = entryIndex + 5; // 跳过交易期
+            final dd = (peakEquity - equity) / peakEquity;
+            if (dd > maxDrawdown) maxDrawdown = dd;
+            i = entryIndex + 5;
             continue;
           }
         }
       }
-
       i++;
     }
 
     // 计算统计指标
-    final winningTrades = trades.where((t) => t.pnl > 0).toList();
-    final losingTrades = trades.where((t) => t.pnl <= 0).toList();
-    final winRate = trades.isNotEmpty ? winningTrades.length / trades.length : 0.0;
-    final avgProfit = winningTrades.isNotEmpty
-        ? winningTrades.map((t) => t.pnl).reduce((a, b) => a + b) / winningTrades.length
-        : 0.0;
-    final avgLoss = losingTrades.isNotEmpty
-        ? losingTrades.map((t) => t.pnl.abs()).reduce((a, b) => a + b) / losingTrades.length
-        : 0.0;
+    final winning = trades.where((t) => t.pnl > 0).toList();
+    final losing = trades.where((t) => t.pnl <= 0).toList();
+    final winRate = trades.isNotEmpty ? winning.length / trades.length : 0.0;
+    final avgProfit = winning.isNotEmpty
+        ? winning.map((t) => t.pnl).reduce((a, b) => a + b) / winning.length : 0.0;
+    final avgLoss = losing.isNotEmpty
+        ? losing.map((t) => t.pnl.abs()).reduce((a, b) => a + b) / losing.length : 0.0;
     final profitFactor = avgLoss > 0 ? avgProfit / avgLoss : (avgProfit > 0 ? 99.0 : 0.0);
     final totalReturn = (equity - 10000) / 10000;
 
-    // 计算夏普比率
+    // 夏普比率
     final returns = <double>[];
     for (int j = 1; j < equityCurve.length; j++) {
       returns.add((equityCurve[j] - equityCurve[j - 1]) / equityCurve[j - 1]);
     }
     final avgReturn = returns.isNotEmpty ? returns.reduce((a, b) => a + b) / returns.length : 0.0;
     final variance = returns.isNotEmpty
-        ? returns.map((r) => (r - avgReturn) * (r - avgReturn)).reduce((a, b) => a + b) / returns.length
-        : 0.0;
+        ? returns.map((r) => (r - avgReturn) * (r - avgReturn)).reduce((a, b) => a + b) / returns.length : 0.0;
     final stdReturn = sqrt(variance);
-    final sharpeRatio = stdReturn > 0 ? (avgReturn / stdReturn) * 15.87 : 0.0; // 年化
+    final sharpeRatio = stdReturn > 0 ? (avgReturn / stdReturn) * 15.87 : 0.0;
 
     return BacktestResult(
-      totalSignals: trades.length,
-      winningTrades: winningTrades.length,
-      losingTrades: losingTrades.length,
-      winRate: winRate,
-      avgProfit: avgProfit,
-      avgLoss: avgLoss,
-      profitFactor: profitFactor,
-      maxDrawdown: maxDrawdown,
-      totalReturn: totalReturn,
-      sharpeRatio: sharpeRatio,
-      trades: trades,
+      totalSignals: trades.length, winningTrades: winning.length, losingTrades: losing.length,
+      winRate: winRate, avgProfit: avgProfit, avgLoss: avgLoss, profitFactor: profitFactor,
+      maxDrawdown: maxDrawdown, totalReturn: totalReturn, sharpeRatio: sharpeRatio, trades: trades,
     );
   }
 
-  /// 查找支撑位
-  static double? _findSupport(List<Kline> klines) {
-    if (klines.length < 5) return null;
-    final lows = klines.map((k) => k.low).toList();
-    lows.sort();
-    return lows[lows.length ~/ 4]; // 25%分位数作为支撑
+  // ========== 多头信号检测（6道闸门）==========
+  static Map<String, dynamic>? _detectLongSignal(
+    List<Kline> lookback, List<Kline> allKlines, int index,
+    Map<String, double> support, Map<String, double> resistance,
+    double currentPrice, double minRR,
+  ) {
+    // G1: 价格在支撑带内
+    if (currentPrice < support['lower']! || currentPrice > support['upper']!) return null;
+
+    final eth5m = allKlines.sublist(max(0, index - 20), index + 1);
+    final eth1m = allKlines.sublist(max(0, index - 10), index + 1);
+
+    // G2: 流动性清扫（下影线刺穿支撑带下沿后收回）
+    if (!_checkLiquiditySweep(eth5m, support['lower']!, isLong: true)) return null;
+
+    // G3: CVD底背离（用成交量+价格背离模拟）
+    if (!_checkVolumeDivergence(eth5m, isLong: true)) return null;
+
+    // G4: Delta反转（卖盘衰竭，买盘介入）
+    if (!_checkDeltaReversal(eth1m, isLong: true)) return null;
+
+    // G5: K线反转形态
+    if (!_checkBullishPattern(eth1m)) return null;
+
+    // 计算点位（与推单区一致）
+    final sweepLow = _findSweepLow(eth5m, support['lower']!);
+    final atrBuf = _atrBuffer(eth5m);
+    final stopLoss = sweepLow - atrBuf;
+    final entryLower = support['lower']!;
+    final entryUpper = support['mid']!;
+    final entryMid = (entryLower + entryUpper) / 2;
+    final risk = entryMid - stopLoss;
+
+    // TP1: 盈亏比2:1（与推单区一致）
+    final tp1 = entryMid + risk * 2;
+    // TP2: 下一个压力位（与推单区一致）
+    final tp2 = resistance['mid']!;
+
+    // 盈亏比检查（与推单区一致：≥4:1）
+    final rr = (tp2 - entryMid) / risk;
+    if (rr < minRR) return null;
+
+    return {
+      'entryLower': entryLower, 'entryUpper': entryUpper,
+      'stopLoss': stopLoss, 'tp1': tp1, 'tp2': tp2,
+      'entryMid': entryMid, 'risk': risk,
+    };
   }
 
-  /// 查找压力位
-  static double? _findResistance(List<Kline> klines) {
-    if (klines.length < 5) return null;
-    final highs = klines.map((k) => k.high).toList();
-    highs.sort();
-    return highs[(highs.length * 3) ~/ 4]; // 75%分位数作为压力
+  // ========== 空头信号检测（6道闸门）==========
+  static Map<String, dynamic>? _detectShortSignal(
+    List<Kline> lookback, List<Kline> allKlines, int index,
+    Map<String, double> support, Map<String, double> resistance,
+    double currentPrice, double minRR,
+  ) {
+    // G1: 价格在压力带内
+    if (currentPrice < resistance['lower']! || currentPrice > resistance['upper']!) return null;
+
+    final eth5m = allKlines.sublist(max(0, index - 20), index + 1);
+    final eth1m = allKlines.sublist(max(0, index - 10), index + 1);
+
+    // G2: 流动性清扫（上影线刺穿压力带上沿后收回）
+    if (!_checkLiquiditySweep(eth5m, resistance['upper']!, isLong: false)) return null;
+
+    // G3: CVD顶背离
+    if (!_checkVolumeDivergence(eth5m, isLong: false)) return null;
+
+    // G4: Delta反转（买盘衰竭，卖盘介入）
+    if (!_checkDeltaReversal(eth1m, isLong: false)) return null;
+
+    // G5: K线反转形态（看跌）
+    if (!_checkBearishPattern(eth1m)) return null;
+
+    // 计算点位
+    final sweepHigh = _findSweepHigh(eth5m, resistance['upper']!);
+    final atrBuf = _atrBuffer(eth5m);
+    final stopLoss = sweepHigh + atrBuf;
+    final entryLower = resistance['mid']!;
+    final entryUpper = resistance['upper']!;
+    final entryMid = (entryLower + entryUpper) / 2;
+    final risk = stopLoss - entryMid;
+
+    // TP1: 盈亏比2:1
+    final tp1 = entryMid - risk * 2;
+    // TP2: 下一个支撑位
+    final tp2 = support['mid']!;
+
+    // 盈亏比检查
+    final rr = (entryMid - tp2) / risk;
+    if (rr < minRR) return null;
+
+    return {
+      'entryLower': entryLower, 'entryUpper': entryUpper,
+      'stopLoss': stopLoss, 'tp1': tp1, 'tp2': tp2,
+      'entryMid': entryMid, 'risk': risk,
+    };
   }
 
-  /// 模拟单笔交易
+  // ========== 辅助方法 ==========
+
+  /// 计算支撑带
+  static Map<String, double>? _calcSupportBand(List<Kline> klines) {
+    if (klines.length < 10) return null;
+    final lows = klines.map((k) => k.low).toList()..sort();
+    final q1 = lows[(lows.length * 0.2).floor()];
+    final q2 = lows[(lows.length * 0.35).floor()];
+    final mid = (q1 + q2) / 2;
+    return {'lower': q1, 'mid': mid, 'upper': q2};
+  }
+
+  /// 计算压力带
+  static Map<String, double>? _calcResistanceBand(List<Kline> klines) {
+    if (klines.length < 10) return null;
+    final highs = klines.map((k) => k.high).toList()..sort();
+    final q2 = highs[(highs.length * 0.65).floor()];
+    final q3 = highs[(highs.length * 0.8).floor()];
+    final mid = (q2 + q3) / 2;
+    return {'lower': q2, 'mid': mid, 'upper': q3};
+  }
+
+  /// G2: 流动性清扫检测
+  static bool _checkLiquiditySweep(List<Kline> klines, double level, {required bool isLong}) {
+    if (klines.length < 3) return false;
+    for (int i = klines.length - 3; i < klines.length; i++) {
+      final k = klines[i];
+      if (isLong) {
+        // 下影线刺穿支撑带下沿，收盘价收回支撑带内
+        if (k.low < level * 0.995 && k.close > level) return true;
+      } else {
+        // 上影线刺穿压力带上沿，收盘价收回压力带内
+        if (k.high > level * 1.005 && k.close < level) return true;
+      }
+    }
+    return false;
+  }
+
+  /// G3: 成交量背离（模拟CVD背离）
+  static bool _checkVolumeDivergence(List<Kline> klines, {required bool isLong}) {
+    if (klines.length < 10) return false;
+    final firstHalf = klines.sublist(0, klines.length ~/ 2);
+    final secondHalf = klines.sublist(klines.length ~/ 2);
+    final avgVol1 = firstHalf.map((k) => k.volume).reduce((a, b) => a + b) / firstHalf.length;
+    final avgVol2 = secondHalf.map((k) => k.volume).reduce((a, b) => a + b) / secondHalf.length;
+    final price1 = firstHalf.last.close;
+    final price2 = secondHalf.last.close;
+
+    if (isLong) {
+      // 底背离：价格创新低，但成交量不创新低（卖盘衰竭）
+      return price2 < price1 && avgVol2 < avgVol1 * 1.2;
+    } else {
+      // 顶背离：价格创新高，但成交量不创新高（买盘衰竭）
+      return price2 > price1 && avgVol2 < avgVol1 * 1.2;
+    }
+  }
+
+  /// G4: Delta反转（用成交量变化模拟）
+  static bool _checkDeltaReversal(List<Kline> klines, {required bool isLong}) {
+    if (klines.length < 5) return false;
+    final recent = klines.sublist(klines.length - 4);
+    if (isLong) {
+      // 卖盘衰竭：连续阴线成交量递减，最后一根阳线放量
+      var bearishDeclining = true;
+      for (int i = 0; i < recent.length - 2; i++) {
+        if (recent[i].close >= recent[i].open) bearishDeclining = false;
+      }
+      final last = recent.last;
+      final prev = recent[recent.length - 2];
+      return bearishDeclining && last.close > last.open && last.volume > prev.volume * 1.1;
+    } else {
+      // 买盘衰竭：连续阳线成交量递减，最后一根阴线放量
+      var bullishDeclining = true;
+      for (int i = 0; i < recent.length - 2; i++) {
+        if (recent[i].close <= recent[i].open) bullishDeclining = false;
+      }
+      final last = recent.last;
+      final prev = recent[recent.length - 2];
+      return bullishDeclining && last.close < last.open && last.volume > prev.volume * 1.1;
+    }
+  }
+
+  /// G5: 看涨K线反转形态
+  static bool _checkBullishPattern(List<Kline> klines) {
+    if (klines.length < 3) return false;
+    final k = klines.last;
+    final body = (k.close - k.open).abs();
+    final lowerWick = k.open < k.close ? k.open - k.low : k.close - k.low;
+    final upperWick = k.high - (k.open > k.close ? k.open : k.close);
+
+    // 锤子线：下影线长，实体小，收盘价>开盘价
+    if (k.close > k.open && lowerWick > body * 2 && upperWick < body * 0.5) return true;
+
+    // 看涨吞没：前一根阴线，当前阳线实体完全覆盖前一根
+    if (klines.length >= 2) {
+      final prev = klines[klines.length - 2];
+      if (prev.close < prev.open && k.close > k.open &&
+          k.open <= prev.close && k.close >= prev.open) return true;
+    }
+    return false;
+  }
+
+  /// G5: 看跌K线反转形态
+  static bool _checkBearishPattern(List<Kline> klines) {
+    if (klines.length < 3) return false;
+    final k = klines.last;
+    final body = (k.close - k.open).abs();
+    final upperWick = k.high - (k.open > k.close ? k.open : k.close);
+    final lowerWick = k.open < k.close ? k.open - k.low : k.close - k.low;
+
+    // 射击之星：上影线长，实体小，收盘价<开盘价
+    if (k.close < k.open && upperWick > body * 2 && lowerWick < body * 0.5) return true;
+
+    // 看跌吞没
+    if (klines.length >= 2) {
+      final prev = klines[klines.length - 2];
+      if (prev.close > prev.open && k.close < k.open &&
+          k.open >= prev.close && k.close <= prev.open) return true;
+    }
+    return false;
+  }
+
+  /// 查找清扫低点
+  static double _findSweepLow(List<Kline> klines, double supportLower) {
+    double lowest = supportLower;
+    for (final k in klines) {
+      if (k.low < lowest) lowest = k.low;
+    }
+    return lowest;
+  }
+
+  /// 查找清扫高点
+  static double _findSweepHigh(List<Kline> klines, double resistanceUpper) {
+    double highest = resistanceUpper;
+    for (final k in klines) {
+      if (k.high > highest) highest = k.high;
+    }
+    return highest;
+  }
+
+  /// ATR缓冲
+  static double _atrBuffer(List<Kline> klines) {
+    if (klines.length < 2) return klines.isNotEmpty ? klines.last.close * 0.005 : 10;
+    final trs = <double>[];
+    for (int i = 1; i < klines.length; i++) {
+      final tr = max(
+        klines[i].high - klines[i].low,
+        max((klines[i].high - klines[i-1].close).abs(), (klines[i].low - klines[i-1].close).abs()),
+      );
+      trs.add(tr);
+    }
+    final atr = trs.reduce((a, b) => a + b) / trs.length;
+    return atr * 0.5;
+  }
+
+  /// 模拟单笔交易（与推单区一致的止损止盈规则）
   static BacktestTrade? _simulateTrade(
-    List<Kline> klines,
-    int entryIndex,
-    String direction,
-    double entryPrice,
-    double stopLoss,
-    double tp1,
-    double tp2,
-    double equity,
-    double riskPerTrade,
+    List<Kline> klines, int entryIndex, String direction,
+    Map<String, dynamic> signal, double equity, double riskPerTrade,
   ) {
     if (entryIndex >= klines.length) return null;
 
+    final entryPrice = signal['entryMid'] as double;
+    final stopLoss = signal['stopLoss'] as double;
+    final tp1 = signal['tp1'] as double;
+    final tp2 = signal['tp2'] as double;
     final riskAmount = equity * riskPerTrade;
     final riskPerUnit = (entryPrice - stopLoss).abs();
     final positionSize = riskAmount / riskPerUnit;
+
+    // TP1后止损移至成本，剩余40%仓位继续持有
+    bool tp1Hit = false;
+    double? tp1Price;
 
     for (int i = entryIndex; i < klines.length && i < entryIndex + 50; i++) {
       final bar = klines[i];
@@ -213,104 +401,42 @@ class BacktestEngine {
       if (direction == 'long') {
         // 止损
         if (bar.low <= stopLoss) {
-          final pnl = (stopLoss - entryPrice) * positionSize;
-          return BacktestTrade(
-            entryTime: DateTime.fromMillisecondsSinceEpoch(bar.openTime),
-            exitTime: DateTime.fromMillisecondsSinceEpoch(bar.closeTime),
-            direction: direction,
-            entryPrice: entryPrice,
-            exitPrice: stopLoss,
-            stopLoss: stopLoss,
-            tp1: tp1,
-            tp2: tp2,
-            pnl: pnl,
-            pnlPercent: pnl / equity,
-            exitReason: 'sl',
-          );
+          final pnl = tp1Hit
+              ? (tp1Price! - entryPrice) * positionSize * 0.6 + (entryPrice - entryPrice) * positionSize * 0.4
+              : (stopLoss - entryPrice) * positionSize;
+          return _makeTrade(klines[i], direction, entryPrice, stopLoss, tp1, tp2, pnl, equity, tp1Hit ? 'sl_after_tp1' : 'sl');
         }
         // TP1
-        if (bar.high >= tp1) {
-          final pnl = (tp1 - entryPrice) * positionSize * 0.6 + (entryPrice - entryPrice) * positionSize * 0.4;
-          return BacktestTrade(
-            entryTime: DateTime.fromMillisecondsSinceEpoch(bar.openTime),
-            exitTime: DateTime.fromMillisecondsSinceEpoch(bar.closeTime),
-            direction: direction,
-            entryPrice: entryPrice,
-            exitPrice: tp1,
-            stopLoss: stopLoss,
-            tp1: tp1,
-            tp2: tp2,
-            pnl: pnl,
-            pnlPercent: pnl / equity,
-            exitReason: 'tp1',
-          );
+        if (!tp1Hit && bar.high >= tp1) {
+          tp1Hit = true;
+          tp1Price = tp1;
+          continue; // 继续持有剩余仓位
         }
         // TP2
         if (bar.high >= tp2) {
-          final pnl = (tp2 - entryPrice) * positionSize;
-          return BacktestTrade(
-            entryTime: DateTime.fromMillisecondsSinceEpoch(bar.openTime),
-            exitTime: DateTime.fromMillisecondsSinceEpoch(bar.closeTime),
-            direction: direction,
-            entryPrice: entryPrice,
-            exitPrice: tp2,
-            stopLoss: stopLoss,
-            tp1: tp1,
-            tp2: tp2,
-            pnl: pnl,
-            pnlPercent: pnl / equity,
-            exitReason: 'tp2',
-          );
+          final pnl = tp1Hit
+              ? (tp1 - entryPrice) * positionSize * 0.6 + (tp2 - entryPrice) * positionSize * 0.4
+              : (tp2 - entryPrice) * positionSize;
+          return _makeTrade(klines[i], direction, entryPrice, stopLoss, tp1, tp2, pnl, equity, 'tp2');
         }
       } else {
         // 做空
         if (bar.high >= stopLoss) {
-          final pnl = (entryPrice - stopLoss) * positionSize;
-          return BacktestTrade(
-            entryTime: DateTime.fromMillisecondsSinceEpoch(bar.openTime),
-            exitTime: DateTime.fromMillisecondsSinceEpoch(bar.closeTime),
-            direction: direction,
-            entryPrice: entryPrice,
-            exitPrice: stopLoss,
-            stopLoss: stopLoss,
-            tp1: tp1,
-            tp2: tp2,
-            pnl: pnl,
-            pnlPercent: pnl / equity,
-            exitReason: 'sl',
-          );
+          final pnl = tp1Hit
+              ? (entryPrice - tp1Price!) * positionSize * 0.6 + (entryPrice - entryPrice) * positionSize * 0.4
+              : (entryPrice - stopLoss) * positionSize;
+          return _makeTrade(klines[i], direction, entryPrice, stopLoss, tp1, tp2, pnl, equity, tp1Hit ? 'sl_after_tp1' : 'sl');
         }
-        if (bar.low <= tp1) {
-          final pnl = (entryPrice - tp1) * positionSize * 0.6;
-          return BacktestTrade(
-            entryTime: DateTime.fromMillisecondsSinceEpoch(bar.openTime),
-            exitTime: DateTime.fromMillisecondsSinceEpoch(bar.closeTime),
-            direction: direction,
-            entryPrice: entryPrice,
-            exitPrice: tp1,
-            stopLoss: stopLoss,
-            tp1: tp1,
-            tp2: tp2,
-            pnl: pnl,
-            pnlPercent: pnl / equity,
-            exitReason: 'tp1',
-          );
+        if (!tp1Hit && bar.low <= tp1) {
+          tp1Hit = true;
+          tp1Price = tp1;
+          continue;
         }
         if (bar.low <= tp2) {
-          final pnl = (entryPrice - tp2) * positionSize;
-          return BacktestTrade(
-            entryTime: DateTime.fromMillisecondsSinceEpoch(bar.openTime),
-            exitTime: DateTime.fromMillisecondsSinceEpoch(bar.closeTime),
-            direction: direction,
-            entryPrice: entryPrice,
-            exitPrice: tp2,
-            stopLoss: stopLoss,
-            tp1: tp1,
-            tp2: tp2,
-            pnl: pnl,
-            pnlPercent: pnl / equity,
-            exitReason: 'tp2',
-          );
+          final pnl = tp1Hit
+              ? (entryPrice - tp1) * positionSize * 0.6 + (entryPrice - tp2) * positionSize * 0.4
+              : (entryPrice - tp2) * positionSize;
+          return _makeTrade(klines[i], direction, entryPrice, stopLoss, tp1, tp2, pnl, equity, 'tp2');
         }
       }
     }
@@ -320,18 +446,15 @@ class BacktestEngine {
     final pnl = direction == 'long'
         ? (lastBar.close - entryPrice) * positionSize
         : (entryPrice - lastBar.close) * positionSize;
+    return _makeTrade(lastBar, direction, entryPrice, stopLoss, tp1, tp2, pnl, equity, 'timeout');
+  }
+
+  static BacktestTrade _makeTrade(Kline bar, String direction, double entry, double sl, double tp1, double tp2, double pnl, double equity, String reason) {
     return BacktestTrade(
-      entryTime: DateTime.fromMillisecondsSinceEpoch(lastBar.openTime),
-      exitTime: DateTime.fromMillisecondsSinceEpoch(lastBar.closeTime),
-      direction: direction,
-      entryPrice: entryPrice,
-      exitPrice: lastBar.close,
-      stopLoss: stopLoss,
-      tp1: tp1,
-      tp2: tp2,
-      pnl: pnl,
-      pnlPercent: pnl / equity,
-      exitReason: 'timeout',
+      entryTime: DateTime.fromMillisecondsSinceEpoch(bar.openTime),
+      exitTime: DateTime.fromMillisecondsSinceEpoch(bar.closeTime),
+      direction: direction, entryPrice: entry, exitPrice: reason == 'sl' ? sl : reason == 'tp1' ? tp1 : tp2,
+      stopLoss: sl, tp1: tp1, tp2: tp2, pnl: pnl, pnlPercent: pnl / equity, exitReason: reason,
     );
   }
 }
