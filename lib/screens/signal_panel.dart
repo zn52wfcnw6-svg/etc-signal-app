@@ -929,10 +929,10 @@ class SignalPanel extends StatelessWidget {
 
   /// 预判区域：关键价位和预计评分/胜率
   Widget _buildPredictionZone(AppState app) {
-    final currentPrice = app.currentPrice ?? 0;
+    final currentPrice = app.ethPrice;
     final longCycle = app.longCycleResult;
-    final nearestSupport = longCycle?.nearestSupport?.price ?? 0;
-    final nearestResistance = longCycle?.nearestResistance?.price ?? 0;
+    final nearestSupport = longCycle?.nearestSupport?.mid ?? 0;
+    final nearestResistance = longCycle?.nearestResistance?.mid ?? 0;
 
     // 基于当前市场环境估算到达关键位置时的评分
     // 假设价格到达支撑/压力位时技术面条件改善，评分+15分
@@ -940,8 +940,8 @@ class SignalPanel extends StatelessWidget {
       nearestSupport < currentPrice ? 'long' : 'short',
       technicalScore: 70,
     ).totalScore;
-    final predictedLongScore = (baseScore + 15).clamp(0, 100);
-    final predictedShortScore = (baseScore + 15).clamp(0, 100);
+    final predictedLongScore = (baseScore + 15).clamp(0, 100).toDouble();
+    final predictedShortScore = (baseScore + 15).clamp(0, 100).toDouble();
 
     // 根据评分估算胜率
     String winRateFromScore(double score) {
