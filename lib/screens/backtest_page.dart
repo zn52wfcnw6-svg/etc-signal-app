@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/app_state.dart';
 import '../models/backtest_result.dart';
 import '../engine/backtest_engine.dart';
+import '../config/app_constants.dart';
 
 /// 历史回测页面
 class BacktestPage extends StatefulWidget {
@@ -17,6 +18,8 @@ class _BacktestPageState extends State<BacktestPage> {
   bool _isRunning = false;
   String _selectedInterval = '4h';
   final List<String> _intervals = ['1h', '4h', '1d'];
+  bool _isLoadingMore = false;
+  String _loadStatus = '';
 
   @override
   void initState() {
@@ -27,18 +30,7 @@ class _BacktestPageState extends State<BacktestPage> {
   Future<void> _runBacktest() async {
     setState(() => _isRunning = true);
     final app = context.read<AppState>();
-    var klines = <dynamic>[];
-    switch (_selectedInterval) {
-      case '1h':
-        klines = app.marketData.getEth1h();
-        break;
-      case '4h':
-        klines = app.marketData.getEth4h();
-        break;
-      case '1d':
-        klines = app.marketData.getEth1d();
-        break;
-    }
+    var klines = _getCurrentKlines(app);
     if (klines.length < 50) {
       setState(() => _isRunning = false);
       return;
@@ -48,6 +40,37 @@ class _BacktestPageState extends State<BacktestPage> {
       _result = result;
       _isRunning = false;
     });
+  }
+
+  List<dynamic> _getCurrentKlines(AppState app) {
+    switch (_selectedInterval) {
+      case '1h':
+        return app.marketData.getEth1h();
+      case '4h':
+        return app.marketData.getEth4h();
+      case '1d':
+        return app.marketData.getEth1d();
+      default:
+        return [];
+    }
+  }
+
+  Future<void> _loadMoreData(int count) async {
+    setState(() {
+      _isLoadingMore = true;
+      _loadStatus = '正在加载${count}根$_selectedInterval K线...';
+    });
+    final app = context.read<AppState>();
+    final loaded = await app.marketData.loadMoreHistoricalKlines(
+      AppConstants.ethSymbol,
+      _selectedInterval,
+      count,
+    );
+    setState(() {
+      _isLoadingMore = false;
+      _loadStatus = '已加载$loaded根K线';
+    });
+    _runBacktest();
   }
 
   @override
@@ -89,11 +112,15 @@ class _BacktestPageState extends State<BacktestPage> {
 
   Widget _buildResult() {
     final r = _result!;
+    final app = context.read<AppState>();
+    final klinesCount = _getCurrentKlines(app).length;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildDataLoader(klinesCount),
+          const SizedBox(height: 12),
           // 核心指标
           _buildMetricGrid(r),
           const SizedBox(height: 16),
@@ -101,6 +128,72 @@ class _BacktestPageState extends State<BacktestPage> {
           const Text('交易明细', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
           const SizedBox(height: 8),
           ...r.trades.reversed.take(20).map((t) => _buildTradeItem(t)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDataLoader(int klinesCount) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('回测数据量: $klinesCount根 $_selectedInterval',
+                  style: const TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500)),
+              if (_isLoadingMore)
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            ],
+          ),
+          if (_loadStatus.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(_loadStatus, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isLoadingMore ? null : () => _loadMoreData(300),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.withOpacity(0.2),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('加载300根', style: TextStyle(fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isLoadingMore ? null : () => _loadMoreData(500),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.withOpacity(0.3),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('加载500根', style: TextStyle(fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isLoadingMore ? null : () => _loadMoreData(1000),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('加载1000根', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

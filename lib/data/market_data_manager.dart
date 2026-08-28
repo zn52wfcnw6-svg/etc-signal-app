@@ -272,6 +272,19 @@ class MarketDataManager {
     return _klineCache['${symbol}_$interval'] ?? [];
   }
 
+  /// 获取更多历史K线数据（用于回测）
+  Future<int> loadMoreHistoricalKlines(String symbol, String interval, int limit) async {
+    try {
+      await _fetchAndCacheKlines(symbol, interval, limit).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {},
+      );
+      return getKlines(symbol, interval).length;
+    } catch (e) {
+      return getKlines(symbol, interval).length;
+    }
+  }
+
   /// 获取ETH 1m K线
   List<Kline> getEth1m() => getKlines(AppConstants.ethSymbol, '1m');
 
