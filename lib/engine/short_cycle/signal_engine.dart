@@ -136,12 +136,12 @@ class SignalEngine {
       result = _detector.detectShort(longCycle, eth1m, eth5m, adaptive: adaptive);
     } else {
       // 新检测：根据市场状态决定优先方向
-      if (regime.allowsCounterTrend && longCycle.allowsLong) {
+      if (regime.allowsCounterTrend || regime.regime == MarketRegime.ranging) {
         result = _detector.detectLong(longCycle, eth1m, eth5m, adaptive: adaptive);
         if (result.allPassed) _pendingDirection = SignalDirection.long;
       }
       if (result == null || !result.allPassed) {
-        if (regime.allowsCounterTrend && longCycle.allowsShort) {
+        if (regime.allowsCounterTrend || regime.regime == MarketRegime.ranging) {
           result = _detector.detectShort(longCycle, eth1m, eth5m, adaptive: adaptive);
           if (result.allPassed) _pendingDirection = SignalDirection.short;
         }
@@ -151,7 +151,7 @@ class SignalEngine {
     if (result != null && result.allPassed) {
       // 7. 多周期共振过滤
       final resonance = mtf.resonanceStrength(_pendingDirection == SignalDirection.long);
-      if (resonance < 2) {
+      if (resonance < 1) {
         _pendingDirection = null;
         _confirmationCount = 0;
         _emitAnalysis(longCycle, adaptive, regime, mtf, orderFlow, '多周期共振不足($resonance/5)');
@@ -199,6 +199,7 @@ class SignalEngine {
     // 趋势市只做顺势
     if (regime.regime == MarketRegime.trendingUp && !longCycle.allowsLong) return false;
     if (regime.regime == MarketRegime.trendingDown && !longCycle.allowsShort) return false;
+    // 震荡市允许逆势抓顶抓底（不再限制allowsLong/allowsShort）
     // 极端市只做反转
     if (regime.regime == MarketRegime.extreme &&
         longCycle.state != LongCycleState.trendExhaustion) return false;
