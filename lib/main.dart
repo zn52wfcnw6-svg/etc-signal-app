@@ -128,7 +128,7 @@ class _GlobalErrorWidget extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text('文件: lib/$fileName.dart', style: const TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'monospace')),
                       Text('行号: $lineNum 列号: $colNum', style: const TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'monospace')),
-                      if (library != null && library.isNotEmpty) Text('库: $library', style: const TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'monospace')),
+                      if (library?.isNotEmpty ?? false) Text('库: $library', style: const TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'monospace')),
                     ],
                   ),
                 ),
