@@ -205,7 +205,7 @@ class _PositionsPageState extends State<PositionsPage> {
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
                       child: const Text('TP1减仓60%+移止损'),
                       onPressed: () {
-                        app.riskManager.updateStopLoss(pos.id, pos.entryPrice);
+                        app.riskManager?.updateStopLoss(pos.id, pos.entryPrice);
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('止损已移至开仓成本')));
                       },
                     ),

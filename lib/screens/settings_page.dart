@@ -305,7 +305,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   _paramRow('初始化', app.isInitialized ? '已完成' : '未完成'),
                   _paramRow('风险等级', app.riskState?.level.name ?? 'L0'),
                   _paramRow('当前持仓', '${app.positions.length}笔'),
-                  _paramRow('自优化样本', '${app.signalEngine.optimizer.records.length}条'),
+                  _paramRow('自优化样本', '${app.signalEngine?.optimizer.records.length ?? 0}条'),
                 ],
               ),
             ),

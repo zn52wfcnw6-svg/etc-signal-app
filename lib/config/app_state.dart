@@ -20,9 +20,9 @@ import '../utils/constants.dart';
 /// 应用全局状态
 class AppState extends ChangeNotifier {
   final MarketDataManager marketData = MarketDataManager();
-  late final SignalEngine signalEngine;
-  late final RiskManager riskManager;
-  late final SelfHealingMonitor selfHealing;
+  SignalEngine? signalEngine;
+  RiskManager? riskManager;
+  SelfHealingMonitor? selfHealing;
   final DatabaseHelper database = DatabaseHelper();
 
   bool _isInitialized = false;
@@ -110,9 +110,9 @@ class AppState extends ChangeNotifier {
       confirmedSignal: _currentSignal,
     );
   }
-  List<Position> get positions => riskManager.positions;
-  double get accountBalance => riskManager.accountBalance;
-  double get totalRisk => riskManager.totalRisk;
+  List<Position> get positions => riskManager?.positions ?? [];
+  double get accountBalance => riskManager?.accountBalance ?? 0;
+  double get totalRisk => riskManager?.totalRisk ?? 0;
 
   StreamSubscription? _ethSub;
   StreamSubscription? _btcSub;
@@ -176,7 +176,7 @@ class AppState extends ChangeNotifier {
   }
 
   void _registerHealthChecks() {
-    selfHealing.registerCheck('data', () async {
+    selfHealing?.registerCheck('data', () async {
       final eth = marketData.ethData;
       final btc = marketData.btcData;
       if (eth == null || btc == null) {
@@ -189,7 +189,7 @@ class AppState extends ChangeNotifier {
       }
       return HealthCheckResult(module: 'data', isHealthy: true);
     });
-    selfHealing.registerHealer('data', () async {
+    selfHealing?.registerHealer('data', () async {
       await marketData.manualRefresh();
       return marketData.ethData != null;
     });
@@ -199,7 +199,7 @@ class AppState extends ChangeNotifier {
     if (!_isInitialized || _isRunning) return;
     _isRunning = true;
     marketData.startPolling();
-    selfHealing.start();
+    selfHealing?.start();
     _mainTimer = Timer.periodic(
       const Duration(seconds: AppConstants.pollIntervalSeconds),
       (_) => _tick(),
@@ -226,13 +226,13 @@ class AppState extends ChangeNotifier {
     if ((_riskState?.level ?? RiskLevel.L0) == RiskLevel.L3) {
       _statusMessage = '极端风险: ${_riskState?.reasonText ?? ''}';
       // 仍然运行分析以更新UI数据
-      await signalEngine.tick();
+      await signalEngine?.tick();
       notifyListeners();
       return;
     }
 
     // 信号引擎（内部整合所有分析模块）
-    await signalEngine.tick();
+    await signalEngine?.tick();
   }
 
   Future<void> manualRefresh() async {
@@ -276,13 +276,13 @@ class AppState extends ChangeNotifier {
   }
 
   void closePosition(String id, double closePrice, double pnl) {
-    riskManager.closePosition(id, closePrice, pnl);
+    riskManager?.closePosition(id, closePrice, pnl);
     notifyListeners();
   }
 
   void markSignalExecuted(bool executed, {double? pnl}) {
     if (_currentSignal != null) {
-      signalEngine.markSignalExecuted(_currentSignal!.id, executed, pnl: pnl);
+      signalEngine?.markSignalExecuted(_currentSignal!.id, executed, pnl: pnl);
       database.updateSignal(_currentSignal!);
       notifyListeners();
     }
@@ -292,7 +292,7 @@ class AppState extends ChangeNotifier {
     _isRunning = false;
     _mainTimer?.cancel();
     marketData.stopPolling();
-    selfHealing.stop();
+    selfHealing?.stop();
     notifyListeners();
   }
 
@@ -306,9 +306,9 @@ class AppState extends ChangeNotifier {
     _riskSub?.cancel();
     _errorSub?.cancel();
     marketData.dispose();
-    signalEngine.dispose();
-    riskManager.dispose();
-    selfHealing.dispose();
+    signalEngine?.dispose();
+    riskManager?.dispose();
+    selfHealing?.dispose();
     super.dispose();
   }
 }
