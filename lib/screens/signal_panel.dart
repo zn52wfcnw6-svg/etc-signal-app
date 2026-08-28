@@ -209,6 +209,9 @@ class SignalPanel extends StatelessWidget {
     final isLong = rec.direction == TradeRecommendationDirection.long;
     final isShort = rec.direction == TradeRecommendationDirection.short;
     final isWait = rec.direction == TradeRecommendationDirection.wait;
+    final direction = isLong ? 'long' : isShort ? 'short' : 'long';
+    final technicalScore = isWait ? 50.0 : (rec.isConfirmed ? 85.0 : 70.0);
+    final sssResult = app.multiDimensionData.calculateSSSScore(direction, technicalScore: technicalScore);
 
     Color accentColor;
     if (isLong) {
@@ -236,6 +239,8 @@ class SignalPanel extends StatelessWidget {
                     const Text('推单区', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(width: 8),
                     _buildQualityBadge(rec),
+                    const SizedBox(width: 6),
+                    _buildSSSBadge(sssResult),
                   ],
                 ),
                 Container(
@@ -672,6 +677,79 @@ class SignalPanel extends StatelessWidget {
           Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
         ],
       ),
+    );
+  }
+
+  Widget _buildSSSBadge(SSSResult sss) {
+    Color color;
+    if (sss.totalScore >= 85) color = Colors.purple;
+    else if (sss.totalScore >= 75) color = Colors.blue;
+    else if (sss.totalScore >= 60) color = Colors.orange;
+    else color = Colors.grey;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color, width: 1),
+      ),
+      child: Text('${sss.grade} ${sss.totalScore.toStringAsFixed(0)}分',
+          style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildSSSAnalysis(SSSResult sss) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.purple.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.purple.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('SSS级多维度分析', style: TextStyle(fontSize: 12, color: Colors.purple, fontWeight: FontWeight.w600)),
+              Text(sss.recommendation, style: TextStyle(fontSize: 11, color: sss.isHighConfidence ? Colors.green : Colors.grey)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildScoreBar('技术面', sss.technicalScore, Colors.blue),
+          const SizedBox(height: 4),
+          _buildScoreBar('消息面', sss.newsScore, Colors.orange),
+          const SizedBox(height: 4),
+          _buildScoreBar('宏观面', sss.macroScore, Colors.cyan),
+          const SizedBox(height: 4),
+          _buildScoreBar('情绪面', sss.sentimentScore, Colors.pink),
+          const SizedBox(height: 4),
+          _buildScoreBar('资金面', sss.capitalScore, Colors.teal),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreBar(String label, double score, Color color) {
+    return Row(
+      children: [
+        SizedBox(width: 50, child: Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey))),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: score / 100,
+              backgroundColor: Colors.grey.withOpacity(0.2),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+              minHeight: 6,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text('${score.toStringAsFixed(0)}', style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 

@@ -12,6 +12,8 @@ import '../engine/multi_timeframe/mtf_analyzer.dart';
 import '../engine/order_flow/deep_order_flow.dart';
 import '../monitor/self_healing.dart';
 import '../monitor/performance_monitor.dart';
+import '../data/multi_dimension_data_manager.dart';
+import '../engine/sss/sss_analyzer.dart';
 import '../storage/database_helper.dart';
 import '../models/signal.dart';
 import '../models/position.dart';
@@ -24,6 +26,9 @@ class AppState extends ChangeNotifier {
   SignalEngine? signalEngine;
   RiskManager? riskManager;
   SelfHealingMonitor? selfHealing;
+  final MultiDimensionDataManager multiDimensionData = MultiDimensionDataManager();
+  SSSResult? _sssResult;
+  SSSResult? get sssResult => _sssResult;
   final DatabaseHelper database = DatabaseHelper();
 
   bool _isInitialized = false;
@@ -146,6 +151,8 @@ class AppState extends ChangeNotifier {
       selfHealing = SelfHealingMonitor(database);
       await marketData.init();
       _registerHealthChecks();
+      // 初始化多维度数据（消息面/宏观面/情绪面/资金面）
+      unawaited(multiDimensionData.init());
       // 监听K线加载状态
       _checkKlinesReady();
 

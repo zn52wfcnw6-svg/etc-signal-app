@@ -281,17 +281,28 @@ class BacktestEngine {
     }
   }
 
-  /// G4: Delta反转（用成交量变化模拟）- 放宽版
+  /// G4: Delta反转（用成交量变化模拟）- SSS级严格版
   static bool _checkDeltaReversal(List<Kline> klines, {required bool isLong}) {
-    if (klines.length < 3) return true; // 数据不足时默认通过
-    final last = klines.last;
-    final prev = klines[klines.length - 2];
+    if (klines.length < 5) return false;
+    final recent = klines.sublist(klines.length - 4);
     if (isLong) {
-      // 只要最后一根是阳线或成交量放大就通过
-      return last.close > last.open || last.volume > prev.volume;
+      // 卖盘衰竭：连续阴线成交量递减，最后一根阳线放量
+      var bearishDeclining = true;
+      for (int i = 0; i < recent.length - 2; i++) {
+        if (recent[i].close >= recent[i].open) bearishDeclining = false;
+      }
+      final last = recent.last;
+      final prev = recent[recent.length - 2];
+      return bearishDeclining && last.close > last.open && last.volume > prev.volume * 1.1;
     } else {
-      // 只要最后一根是阴线或成交量放大就通过
-      return last.close < last.open || last.volume > prev.volume;
+      // 买盘衰竭：连续阳线成交量递减，最后一根阴线放量
+      var bullishDeclining = true;
+      for (int i = 0; i < recent.length - 2; i++) {
+        if (recent[i].close <= recent[i].open) bullishDeclining = false;
+      }
+      final last = recent.last;
+      final prev = recent[recent.length - 2];
+      return bullishDeclining && last.close < last.open && last.volume > prev.volume * 1.1;
     }
   }
 
