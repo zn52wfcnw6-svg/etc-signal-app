@@ -58,6 +58,9 @@ class SignalPanel extends StatelessWidget {
               // 推单区
               _buildTradeRecommendationCard(app),
               const SizedBox(height: 16),
+              // 消息面分析（SSS级）
+              _buildNewsAnalysisCard(),
+              const SizedBox(height: 16),
               // 关键价位
               if (longCycle != null)
                 _buildKeyLevelsCard(longCycle, currentPrice),
@@ -226,7 +229,13 @@ class SignalPanel extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('推单区', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Row(
+                  children: [
+                    const Text('推单区', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    _buildQualityBadge(rec),
+                  ],
+                ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
@@ -301,12 +310,183 @@ class SignalPanel extends StatelessWidget {
     );
   }
 
+  /// SSS级信号质量徽章
+  Widget _buildQualityBadge(dynamic rec) {
+    SignalQuality quality;
+    try {
+      final rr = rec.riskRewardRatio as double;
+      final confirmed = rec.isConfirmed as bool;
+      if (confirmed && rr >= 4) quality = SignalQuality.sss;
+      else if (confirmed && rr >= 3) quality = SignalQuality.ss;
+      else if (rr >= 3) quality = SignalQuality.s;
+      else if (rr >= 2) quality = SignalQuality.a;
+      else quality = SignalQuality.b;
+    } catch (_) {
+      quality = SignalQuality.b;
+    }
+
+    Color badgeColor;
+    switch (quality) {
+      case SignalQuality.sss: badgeColor = const Color(0xFFFFD700); break;
+      case SignalQuality.ss: badgeColor = const Color(0xFFC0C0C0); break;
+      case SignalQuality.s: badgeColor = const Color(0xFFCD7F32); break;
+      case SignalQuality.a: badgeColor = Colors.green; break;
+      case SignalQuality.b: badgeColor = Colors.orange; break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: badgeColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: badgeColor, width: 1),
+      ),
+      child: Text(
+        quality.name.toUpperCase(),
+        style: TextStyle(color: badgeColor, fontWeight: FontWeight.bold, fontSize: 10),
+      ),
+    );
+  }
+
   Widget _recRow(String label, String value, Color color) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: const TextStyle(fontSize: 13, color: Colors.white60)),
         Text(value, style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
+  /// 消息面分析卡片（SSS级）
+  Widget _buildNewsAnalysisCard() {
+    final newsAnalyzer = NewsAnalyzer();
+    final result = newsAnalyzer.analyze();
+
+    Color sentimentColor;
+    if (result.overallSentiment == NewsSentiment.bullish) sentimentColor = Colors.green;
+    else if (result.overallSentiment == NewsSentiment.bearish) sentimentColor = Colors.red;
+    else sentimentColor = Colors.grey;
+
+    return Card(
+      elevation: 2,
+      color: const Color(0xFF1A1A1A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.newspaper, size: 18, color: Colors.blue),
+                    SizedBox(width: 6),
+                    Text('消息面分析', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: sentimentColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: sentimentColor),
+                  ),
+                  child: Text(
+                    result.overallSentiment.name.toUpperCase(),
+                    style: TextStyle(color: sentimentColor, fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // 情绪评分条
+            Row(
+              children: [
+                const Text('情绪评分', style: TextStyle(fontSize: 12, color: Colors.white60)),
+                const Spacer(),
+                Text('${result.overallSentimentScore.toStringAsFixed(0)}/100',
+                    style: TextStyle(fontSize: 12, color: sentimentColor, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: (result.overallSentimentScore + 100) / 200,
+                backgroundColor: Colors.grey[800],
+                valueColor: AlwaysStoppedAnimation<Color>(sentimentColor),
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 统计
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _newsStat('高影响', '${result.highImpactNewsCount}', Colors.orange),
+                _newsStat('利好', '${result.bullishNewsCount}', Colors.green),
+                _newsStat('利空', '${result.bearishNewsCount}', Colors.red),
+                _newsStat('预估影响', '${result.estimatedPriceImpact.toStringAsFixed(1)}%',
+                    result.estimatedPriceImpact >= 0 ? Colors.green : Colors.red),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // 建议
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Text(result.recommendation, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+            ),
+            const SizedBox(height: 12),
+            // 最近新闻
+            const Text('最近消息', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+            const SizedBox(height: 8),
+            ...result.recentNews.take(3).map((news) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 4,
+                    height: 40,
+                    color: news.sentiment == NewsSentiment.bullish ? Colors.green
+                        : news.sentiment == NewsSentiment.bearish ? Colors.red : Colors.grey,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(news.title, style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 2),
+                        Text('${news.typeLabel} · ${news.impactLabel} · ${news.source}',
+                            style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            )).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _newsStat(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
       ],
     );
   }
