@@ -8,6 +8,8 @@ import '../engine/risk/risk_manager.dart';
 import '../models/trade_recommendation.dart';
 import '../widgets/kline_chart.dart';
 import '../widgets/order_flow_visualization.dart';
+import '../engine/news/news_analyzer.dart';
+import '../engine/signal_quality_evaluator.dart';
 
 class SignalPanel extends StatelessWidget {
   const SignalPanel({super.key});
@@ -325,7 +327,7 @@ class SignalPanel extends StatelessWidget {
       quality = SignalQuality.b;
     }
 
-    Color badgeColor;
+    Color badgeColor = Colors.orange;
     switch (quality) {
       case SignalQuality.sss: badgeColor = const Color(0xFFFFD700); break;
       case SignalQuality.ss: badgeColor = const Color(0xFFC0C0C0); break;
