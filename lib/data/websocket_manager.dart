@@ -194,7 +194,8 @@ class OrderFlowManager {
         final ws = ExchangeWebSocket(exchange: ex, symbol: AppConstants.ethSymbol);
         _sockets[ex] = ws;
         ws.tradeStream.listen((_) => _onTrade(), onError: (_) {});
-        await ws.connect();
+        // 给WebSocket连接添加超时，避免卡住初始化
+        await ws.connect().timeout(const Duration(seconds: 3), onTimeout: () {});
       } catch (_) {
         // 单个交易所连接失败不影响其他交易所
       }

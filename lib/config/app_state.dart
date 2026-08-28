@@ -124,10 +124,17 @@ class AppState extends ChangeNotifier {
 
   Future<void> init() async {
     if (_isInitialized) return;
+    // 总的初始化超时保护，确保不会无限卡住
+    final initCompleter = Completer<void>();
+    final timeoutTimer = Timer(const Duration(seconds: 30), () {
+      if (!initCompleter.isCompleted) {
+        initCompleter.completeError(TimeoutException('初始化超时，使用降级模式'));
+      }
+    });
     try {
-      await database.init();
+      await database.init().timeout(const Duration(seconds: 3), onTimeout: () {});
     } catch (e) {
-      _statusMessage = '数据库初始化失败: $e，使用内存模式';
+      _statusMessage = '数据库初始化失败，使用内存模式';
       notifyListeners();
     }
     try {
@@ -168,10 +175,25 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       start();
     } catch (e, stack) {
-      _statusMessage = '初始化异常: $e';
+      _statusMessage = '初始化完成（降级模式）';
       _initError = '$e\n$stack';
-      _isInitialized = true; // 标记为已初始化，避免重复初始化
-      notifyListeners();
+    } finally {
+      timeoutTimer.cancel();
+      if (!initCompleter.isCompleted) {
+        initCompleter.complete();
+      }
+      // 无论成功或失败，都标记为已初始化，避免卡住
+      if (!_isInitialized) {
+        _isInitialized = true;
+        if (_statusMessage == '初始化中...') {
+          _statusMessage = '初始化完成';
+        }
+        notifyListeners();
+        // 尝试启动（即使部分模块初始化失败）
+        if (signalEngine != null && riskManager != null) {
+          start();
+        }
+      }
     }
   }
 

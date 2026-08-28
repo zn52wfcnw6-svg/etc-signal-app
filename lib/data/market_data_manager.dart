@@ -30,33 +30,48 @@ class MarketDataManager {
   int _pollCount = 0;
 
   Future<void> init() async {
+    // 订单流初始化（带超时，不阻塞主流程）
     try {
-      await _orderFlowManager.init();
-    } catch (_) {
-      // 订单流初始化失败不影响行情主功能
-    }
+      await _orderFlowManager.init().timeout(const Duration(seconds: 5), onTimeout: () {});
+    } catch (_) {}
+    // K线预加载（带总超时，并行加载关键周期）
     try {
-      await _preloadKlines();
-    } catch (_) {
-      // K线预加载失败不影响主功能
-    }
+      await _preloadKlines().timeout(const Duration(seconds: 15), onTimeout: () {});
+    } catch (_) {}
   }
 
   Future<void> _preloadKlines() async {
-    // 串行加载，避免CORS代理限流
+    // 只预加载最关键的周期，并行加载加快速度
     final tasks = [
-      ('eth', '1m', 20),
-      ('eth', '5m', 20),
+      ('eth', '1m', 30),
+      ('eth', '5m', 30),
       ('eth', '1h', 20),
       ('eth', '4h', 20),
-      ('eth', '1d', 20),
-      ('btc', '5m', 20),
+      ('btc', '5m', 30),
       ('btc', '15m', 20),
+    ];
+    // 并行加载
+    await Future.wait(tasks.map((t) async {
+      final symbol = t.$1 == 'eth' ? AppConstants.ethSymbol : AppConstants.btcSymbol;
+      try {
+        await _fetchAndCacheKlines(symbol, t.$2, t.$3).timeout(const Duration(seconds: 8));
+      } catch (_) {}
+    }));
+    // 长周期K线后台异步加载，不阻塞初始化
+    _preloadLongCycleKlines();
+  }
+
+  Future<void> _preloadLongCycleKlines() async {
+    // 后台异步加载长周期K线
+    final tasks = [
+      ('eth', '1d', 20),
       ('btc', '4h', 20),
     ];
     for (final t in tasks) {
       final symbol = t.$1 == 'eth' ? AppConstants.ethSymbol : AppConstants.btcSymbol;
-      await _fetchAndCacheKlines(symbol, t.$2, t.$3);
+      try {
+        await _fetchAndCacheKlines(symbol, t.$2, t.$3).timeout(const Duration(seconds: 10));
+      } catch (_) {}
     }
   }
 
