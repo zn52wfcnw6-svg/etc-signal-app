@@ -14,7 +14,7 @@ import '../monitor/self_healing.dart';
 import '../monitor/performance_monitor.dart';
 import '../data/multi_dimension_data_manager.dart';
 import '../engine/sss/sss_analyzer.dart';
-import '../engine/signal_history_tracker.dart';
+import '../engine/signal_history_tracker.dart' hide SignalStatus;
 import '../engine/signal_enhancement_manager.dart';
 import '../engine/signal_lifecycle_manager.dart';
 import '../engine/system_closed_loop_manager.dart';
