@@ -8,6 +8,7 @@ import '../engine/risk/risk_manager.dart';
 import '../models/trade_recommendation.dart';
 import '../models/market_data.dart';
 import '../engine/time_prediction_engine.dart';
+import '../widgets/hud_signal_panel.dart';
 import '../engine/signal_lifecycle_manager.dart';
 import '../widgets/kline_chart.dart';
 import '../widgets/order_flow_visualization.dart';
@@ -40,9 +41,9 @@ class SignalPanel extends StatelessWidget {
               // 状态卡片
               _buildStatusCard(app, riskLevel, longCycle, currentPrice),
               const SizedBox(height: 16),
-              // 信号或市场分析
+              // 信号或市场分析（HUD风格）
               if (signal != null && signal.status == SignalStatus.confirmed && !isFrozen)
-                _buildSignalCard(signal, app)
+                HudSignalPanel(app: app)
               else
                 _buildMarketAnalysisCard(app, longCycle, riskLevel, currentPrice),
               const SizedBox(height: 16),
