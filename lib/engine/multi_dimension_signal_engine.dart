@@ -609,7 +609,7 @@ class MultiDimensionSignalEngine {
       totalWeight += dim.weight;
       weightedScore += dim.score * dim.weight;
     }
-    final finalScore = totalWeight > 0 ? weightedScore / totalWeight : 50;
+    final finalScore = totalWeight > 0 ? weightedScore / totalWeight : 50.0;
 
     // 3. 判断方向（多数维度一致）
     int longCount = 0;
