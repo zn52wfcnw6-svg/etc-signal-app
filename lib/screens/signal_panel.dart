@@ -1545,36 +1545,56 @@ class SignalPanel extends StatelessWidget {
   }
 
   /// 最终总结（所有模块服务于此，给出最终订单设计）
+  /// 优先使用双引擎级联决策的结果
   Widget _buildFinalSummary(AppState app) {
+    final finalSignal = app.finalSignal;
     final rec = app.tradeRecommendation;
-    final isLong = rec.direction == TradeRecommendationDirection.long;
-    final isShort = rec.direction == TradeRecommendationDirection.short;
-    final currentPrice = app.ethPrice;
-    final entry = (rec.entryLower + rec.entryUpper) / 2;
-    final sl = rec.stopLoss;
-    final tp1 = rec.tp1;
-    final tp2 = rec.tp2;
 
-    // 综合评分（从SSS级获取）
-    final direction = isLong ? 'long' : isShort ? 'short' : 'long';
-    final technicalScore = isLong || isShort ? 75.0 : 50.0;
-    final sssResult = app.multiDimensionData.calculateSSSScore(direction, technicalScore: technicalScore);
-    final totalScore = sssResult.totalScore;
+    // 优先使用双引擎级联决策的结果
+    final bool useFinalSignal = finalSignal != null && finalSignal.hasSignal;
+    final bool isLong = useFinalSignal
+        ? finalSignal.direction == 'long'
+        : rec.direction == TradeRecommendationDirection.long;
+    final bool isShort = useFinalSignal
+        ? finalSignal.direction == 'short'
+        : rec.direction == TradeRecommendationDirection.short;
+    final currentPrice = app.ethPrice;
+
+    // 点位优先使用双引擎结果
+    final double entryLower = useFinalSignal ? finalSignal.entryLower : rec.entryLower;
+    final double entryUpper = useFinalSignal ? finalSignal.entryUpper : rec.entryUpper;
+    final double entry = (entryLower + entryUpper) / 2;
+    final double sl = useFinalSignal ? finalSignal.stopLoss : rec.stopLoss;
+    final double tp1 = useFinalSignal ? finalSignal.tp1 : rec.tp1;
+    final double tp2 = useFinalSignal ? finalSignal.tp2 : rec.tp2;
+    final double riskReward = useFinalSignal ? finalSignal.riskRewardRatio : rec.riskRewardRatio;
+    final double confidence = useFinalSignal ? finalSignal.confidence : 0;
+
+    // 综合评分（优先使用双引擎结果）
+    double totalScore;
+    if (useFinalSignal) {
+      totalScore = finalSignal.confidence;
+    } else {
+      final direction = isLong ? 'long' : isShort ? 'short' : 'long';
+      final technicalScore = isLong || isShort ? 75.0 : 50.0;
+      final sssResult = app.multiDimensionData.calculateSSSScore(direction, technicalScore: technicalScore);
+      totalScore = sssResult.totalScore;
+    }
 
     // 信心度
-    String confidence;
+    String confidenceText;
     Color confidenceColor;
     if (totalScore >= 85) {
-      confidence = '极高信心（SSS级）';
+      confidenceText = useFinalSignal ? '极高信心（双引擎通过）' : '极高信心（SSS级）';
       confidenceColor = Colors.green;
     } else if (totalScore >= 75) {
-      confidence = '高信心（SS级）';
+      confidenceText = useFinalSignal ? '高信心（双引擎通过）' : '高信心（SS级）';
       confidenceColor = Colors.lightGreen;
     } else if (totalScore >= 65) {
-      confidence = '中等信心（S级）';
+      confidenceText = useFinalSignal ? '中等信心（双引擎）' : '中等信心（S级）';
       confidenceColor = Colors.orange;
     } else {
-      confidence = '低信心（谨慎）';
+      confidenceText = useFinalSignal ? '低信心（谨慎）' : '低信心（谨慎）';
       confidenceColor = Colors.red;
     }
 
@@ -1650,7 +1670,7 @@ class SignalPanel extends StatelessWidget {
                   color: confidenceColor.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(confidence, style: TextStyle(color: confidenceColor, fontSize: 10, fontWeight: FontWeight.w600)),
+                child: Text(confidenceText, style: TextStyle(color: confidenceColor, fontSize: 10, fontWeight: FontWeight.w600)),
               ),
             ],
           ),
@@ -1672,6 +1692,34 @@ class SignalPanel extends StatelessWidget {
               ],
             ),
           ),
+          // 双引擎状态显示
+          if (useFinalSignal) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.cyan.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.cyan.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_awesome, color: Colors.cyan, size: 14),
+                  const SizedBox(width: 6),
+                  Text(
+                    '双引擎级联: ${finalSignal.engineStatus}',
+                    style: const TextStyle(color: Colors.cyan, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '多维度:${finalSignal.multiScore.toStringAsFixed(0)} 原信号:${finalSignal.originalConfidence.toStringAsFixed(0)}',
+                    style: const TextStyle(color: Colors.grey, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           // 订单设计
           if (isLong || isShort) ...[
@@ -1683,9 +1731,9 @@ class SignalPanel extends StatelessWidget {
             const SizedBox(height: 6),
             _recRow('止盈TP2', '\$${tp2.toStringAsFixed(2)}', Colors.green),
             const SizedBox(height: 6),
-            _recRow('盈亏比', '${rec.riskRewardRatio.toStringAsFixed(1)}:1', rec.riskRewardRatio >= 4 ? Colors.green : Colors.orange),
+            _recRow('盈亏比', '${riskReward.toStringAsFixed(1)}:1', riskReward >= 4 ? Colors.green : Colors.orange),
             const SizedBox(height: 6),
-            _recRow('建议仓位', '${(rec.positionSize * 100).toStringAsFixed(0)}%', Colors.purple),
+            _recRow('建议仓位', useFinalSignal ? finalSignal.positionAdvice : '${(rec.positionSize * 100).toStringAsFixed(0)}%', Colors.purple),
             const SizedBox(height: 10),
             // 预计到达时间（8因素时间预测引擎）
             Container(
