@@ -625,7 +625,7 @@ class MultiDimensionSignalEngine {
 
     // 4. 计算可信度（维度一致性+评分）
     final consistency = (longCount > shortCount ? longCount : shortCount).toDouble() / dimensions.length;
-    final confidence = (finalScore * 0.6 + consistency * 100 * 0.4).clamp(0, 100).toDouble();
+    final confidence = (finalScore * 0.6 + consistency * 100 * 0.4).clamp(0.0, 100.0).toDouble();
 
     // 5. 判断是否有信号（评分≥70，方向明确，所有过滤通过）
     final hasSignal = finalScore >= 70 &&
