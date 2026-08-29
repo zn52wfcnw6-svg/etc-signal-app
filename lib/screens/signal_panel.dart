@@ -499,6 +499,9 @@ class SignalPanel extends StatelessWidget {
               const SizedBox(height: 12),
               // 最终总结（所有模块服务于此）
               _buildFinalSummary(app),
+              const SizedBox(height: 12),
+              // 双引擎决策状态（独立模块，醒目显示）
+              _buildDualEngineStatus(app),
             ] else ...[
               Container(
                 width: double.infinity,
