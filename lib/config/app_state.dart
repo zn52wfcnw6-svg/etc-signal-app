@@ -414,6 +414,54 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// 运行多维度信号决策
+  void _runMultiDimensionDecision() {
+    try {
+      final klines5m = marketData.getEth5m();
+      final klines1h = marketData.getEth1h();
+      final klines4h = marketData.getEth4h();
+      if (klines5m.length < 20) return;
+
+      final longCycle = signalEngine?.longCycle.analyze();
+      final support = longCycle?.nearestSupport?.mid;
+      final resistance = longCycle?.nearestResistance?.mid;
+
+      final orderFlowBars = marketData.orderFlow.getRecentBars(50);
+      double buyVolume = 0, sellVolume = 0;
+      for (final bar in orderFlowBars) {
+        buyVolume += bar.buyVolume;
+        sellVolume += bar.sellVolume;
+      }
+
+      final multiDim = multiDimensionData;
+
+      _multiDimensionDecision = MultiDimensionSignalEngine.analyze(
+        klines5m: klines5m,
+        klines1h: klines1h,
+        klines4h: klines4h,
+        currentPrice: _ethPrice,
+        support: support,
+        resistance: resistance,
+        cvd: marketData.orderFlow.cumulativeCVD,
+        buyVolume: buyVolume,
+        sellVolume: sellVolume,
+        liquidations: marketData.ethLiquidations,
+        orderBook: marketData.ethOrderBook,
+        fearGreedIndex: multiDim.fearGreedIndex,
+        longShortRatio: multiDim.longShortRatio,
+        news: multiDim.news,
+        sp500Change: multiDim.sp500Change,
+        goldChange: multiDim.goldChange,
+        dxyChange: multiDim.dxyChange,
+        treasuryYield: multiDim.treasuryYield,
+        fundingRate: _ethPrice > 0 ? (marketData.ethData?.fundingRate ?? 0) : 0,
+        openInterest: marketData.ethData?.openInterest ?? 0,
+        openInterestChange: multiDim.openInterestChange,
+        stablecoinMarketCapChange: multiDim.stablecoinMarketCapChange,
+      );
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     stop();

@@ -1,4 +1,5 @@
 import '../models/market_data.dart';
+import '../data/apis/exchange_api.dart';
 import 'advanced_features.dart';
 
 /// ============================================================
@@ -312,12 +313,12 @@ class MultiDimensionSignalEngine {
     // 3. 清算数据分析（真实数据）
     if (liquidations.isNotEmpty) {
       final recentLiquidations = liquidations.where((l) {
-        final timeDiff = DateTime.now().millisecondsSinceEpoch - l.time;
+        final timeDiff = DateTime.now().millisecondsSinceEpoch - (l.time ?? 0);
         return timeDiff < 3600000; // 1小时内
       }).toList();
 
-      final longLiquidations = recentLiquidations.where((l) => l.side == 'sell').fold(0.0, (sum, l) => sum + l.price * l.quantity);
-      final shortLiquidations = recentLiquidations.where((l) => l.side == 'buy').fold(0.0, (sum, l) => sum + l.price * l.quantity);
+      final longLiquidations = recentLiquidations.where((l) => l.side == 'sell').fold(0.0, (sum, l) => sum + (l.price ?? 0) * (l.quantity ?? 0));
+      final shortLiquidations = recentLiquidations.where((l) => l.side == 'buy').fold(0.0, (sum, l) => sum + (l.price ?? 0) * (l.quantity ?? 0));
 
       details['longLiquidations'] = longLiquidations;
       details['shortLiquidations'] = shortLiquidations;
@@ -623,7 +624,7 @@ class MultiDimensionSignalEngine {
     else if (shortCount >= 3 && shortCount > longCount) direction = 'short';
 
     // 4. 计算可信度（维度一致性+评分）
-    final consistency = (longCount > shortCount ? longCount : shortCount) / dimensions.length;
+    final consistency = (longCount > shortCount ? longCount : shortCount).toDouble() / dimensions.length;
     final confidence = (finalScore * 0.6 + consistency * 100 * 0.4).clamp(0, 100).toDouble();
 
     // 5. 判断是否有信号（评分≥70，方向明确，所有过滤通过）
