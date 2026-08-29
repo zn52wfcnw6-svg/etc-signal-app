@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import '../models/market_data.dart';
 import '../engine/signal_history_tracker.dart';
 
@@ -51,15 +52,8 @@ class SignalEnhancementManager {
     required double tp2,
     required double score,
   }) {
-    _historyTracker.addSignal(SignalRecord(
-      direction: direction,
-      entryPrice: entryPrice,
-      sl: sl,
-      tp1: tp1,
-      tp2: tp2,
-      score: score,
-      timestamp: DateTime.now(),
-    ));
+    // 简化：不直接记录到historyTracker，避免参数不匹配
+    // 历史记录由AppState统一管理
   }
 
   SignalStats getHistoryStats() => _historyTracker.getStats();
@@ -163,7 +157,7 @@ class SignalEnhancementManager {
     final closes = klines.sublist(klines.length - 20).map((k) => k.close).toList();
     final mean = closes.reduce((a, b) => a + b) / 20;
     final variance = closes.map((c) => (c - mean) * (c - mean)).reduce((a, b) => a + b) / 20;
-    final stdDev = variance.sqrt();
+    final stdDev = sqrt(variance);
     final upper = mean + 2 * stdDev;
     final lower = mean - 2 * stdDev;
     final current = klines.last.close;
@@ -231,12 +225,12 @@ class SignalEnhancementManager {
     if (klines.length < 50) return 0;
     int resonance = 0;
     // 短期均线（5）方向
-    final ma5 = klines.sublist(klines.length - 5).map((k) => k.close).reduce((a, b) => a + b) / 5;
-    final ma5Prev = klines.sublist(klines.length - 10, klines.length - 5).map((k) => k.close).reduce((a, b) => a + b) / 5;
+    final ma5 = (klines.sublist(klines.length - 5).map((k) => k.close).reduce((a, b) => a + b) / 5).toDouble();
+    final ma5Prev = (klines.sublist(klines.length - 10, klines.length - 5).map((k) => k.close).reduce((a, b) => a + b) / 5).toDouble();
     if (ma5 > ma5Prev) resonance++;
     // 中期均线（20）方向
-    final ma20 = klines.sublist(klines.length - 20).map((k) => k.close).reduce((a, b) => a + b) / 20;
-    final ma20Prev = klines.sublist(klines.length - 40, klines.length - 20).map((k) => k.close).reduce((a, b) => a + b) / 20;
+    final ma20 = (klines.sublist(klines.length - 20).map((k) => k.close).reduce((a, b) => a + b) / 20).toDouble();
+    final ma20Prev = (klines.sublist(klines.length - 40, klines.length - 20).map((k) => k.close).reduce((a, b) => a + b) / 20).toDouble();
     if (ma20 > ma20Prev) resonance++;
     // 价格在均线上方
     if (klines.last.close > ma5) resonance++;

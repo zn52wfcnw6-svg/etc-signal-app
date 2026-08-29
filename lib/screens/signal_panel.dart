@@ -6,6 +6,7 @@ import '../utils/constants.dart';
 import '../engine/long_cycle/long_cycle_manager.dart';
 import '../engine/risk/risk_manager.dart';
 import '../models/trade_recommendation.dart';
+import '../models/market_data.dart';
 import '../widgets/kline_chart.dart';
 import '../widgets/order_flow_visualization.dart';
 import '../engine/news/news_analyzer.dart';
