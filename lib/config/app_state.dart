@@ -487,8 +487,8 @@ class AppState extends ChangeNotifier {
 
       // 第二级：原信号引擎（精确入场）
       final originalSignal = signalEngine?.currentSignal;
-      final originalPassed = originalSignal != null && originalSignal.isValid;
-      final originalConfidence = originalSignal?.confidence ?? 0;
+      final originalPassed = originalSignal != null && originalSignal.status == SignalStatus.confirmed;
+      final originalConfidence = (originalSignal?.confidenceScore ?? 0).toDouble();
 
       // 计算最终自信度（双引擎综合）
       double finalConfidence;

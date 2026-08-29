@@ -1719,8 +1719,7 @@ class _HudPredictionRadarState extends State<_HudPredictionRadar> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
-                  '%
-${signal.confidenceLevel}自信',
+                  '%\n${signal.confidenceLevel}自信',
                   style: TextStyle(
                     color: color,
                     fontSize: 12,
