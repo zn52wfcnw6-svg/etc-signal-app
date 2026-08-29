@@ -15,6 +15,7 @@ import '../monitor/performance_monitor.dart';
 import '../data/multi_dimension_data_manager.dart';
 import '../engine/sss/sss_analyzer.dart';
 import '../engine/signal_history_tracker.dart';
+import '../engine/signal_enhancement_manager.dart';
 import '../storage/database_helper.dart';
 import '../models/signal.dart';
 import '../models/position.dart';
@@ -29,6 +30,7 @@ class AppState extends ChangeNotifier {
   SelfHealingMonitor? selfHealing;
   final MultiDimensionDataManager multiDimensionData = MultiDimensionDataManager();
   final SignalHistoryTracker signalHistory = SignalHistoryTracker();
+  final SignalEnhancementManager enhancement = SignalEnhancementManager();
   SSSResult? _sssResult;
   SSSResult? get sssResult => _sssResult;
   final DatabaseHelper database = DatabaseHelper();

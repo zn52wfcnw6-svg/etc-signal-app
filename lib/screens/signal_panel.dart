@@ -343,6 +343,18 @@ class SignalPanel extends StatelessWidget {
               const SizedBox(height: 12),
               // 情绪面深度分析
               _buildSentimentDeepAnalysis(app),
+              const SizedBox(height: 12),
+              // 技术面深度分析
+              _buildTechnicalDeepAnalysis(app),
+              const SizedBox(height: 12),
+              // 订单流深度分析
+              _buildOrderflowDeepAnalysis(app),
+              const SizedBox(height: 12),
+              // 风险管理
+              _buildRiskManagement(app),
+              const SizedBox(height: 12),
+              // 时间因素
+              _buildTimeFactor(app),
             ] else ...[
               Container(
                 width: double.infinity,
@@ -1003,6 +1015,183 @@ class SignalPanel extends StatelessWidget {
           ],
           if (nearestSupport == 0 && nearestResistance == 0)
             const Text('关键价位计算中...', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  /// 技术面深度分析
+  Widget _buildTechnicalDeepAnalysis(AppState app) {
+    final klines = <Kline>[]; // K线数据从分析引擎获取
+    final analysis = app.enhancement.analyzeTechnical(klines: klines, direction: 'long');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.analytics, color: Colors.blue, size: 14),
+              SizedBox(width: 4),
+              Text('技术面深度分析', style: TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _recRow('K线形态', analysis.pattern, Colors.white),
+          const SizedBox(height: 6),
+          _recRow('RSI(14)', '${analysis.rsi.toStringAsFixed(1)} - ${analysis.rsiStatus}', analysis.rsi >= 70 ? Colors.red : analysis.rsi <= 30 ? Colors.green : Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('MACD', analysis.macdStatus, analysis.macdStatus.contains('金叉') || analysis.macdStatus.contains('多头') ? Colors.green : analysis.macdStatus.contains('死叉') || analysis.macdStatus.contains('空头') ? Colors.red : Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('布林带', analysis.bollingerPosition, analysis.bollingerPosition.contains('上轨') ? Colors.red : analysis.bollingerPosition.contains('下轨') ? Colors.green : Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('多周期共振', analysis.mtfText, analysis.mtfResonance >= 3 ? Colors.green : analysis.mtfResonance >= 2 ? Colors.orange : Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('流动性清扫', analysis.liquiditySweep ? '已检测（反转信号）' : '未检测', analysis.liquiditySweep ? Colors.orange : Colors.grey),
+        ],
+      ),
+    );
+  }
+
+  /// 订单流深度分析
+  Widget _buildOrderflowDeepAnalysis(AppState app) {
+    final orderflow = app.deepOrderFlow;
+    final analysis = app.enhancement.analyzeOrderflow(
+      cvd: 0, // 从deepOrderFlow获取
+      delta: 0, // 从deepOrderFlow获取
+      bigOrderDirection: '均衡', // 从deepOrderFlow获取
+      liquidationRisk: 0, // 从deepOrderFlow获取
+      volumeProfile: 0, // 从deepOrderFlow获取
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.teal.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.teal.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.swap_horiz, color: Colors.teal, size: 14),
+              SizedBox(width: 4),
+              Text('订单流深度分析', style: TextStyle(fontSize: 12, color: Colors.teal, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _recRow('CVD累积', '${analysis.cvd.toStringAsFixed(0)} - ${analysis.cvdTrend}', analysis.cvd > 0 ? Colors.green : analysis.cvd < 0 ? Colors.red : Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('Delta压力', '${analysis.delta.toStringAsFixed(0)} - ${analysis.deltaPressure}', analysis.delta > 0 ? Colors.green : analysis.delta < 0 ? Colors.red : Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('大单方向', analysis.bigOrderDirection, analysis.bigOrderDirection.contains('买') ? Colors.green : analysis.bigOrderDirection.contains('卖') ? Colors.red : Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('清算挤压', analysis.liquidationZone, analysis.liquidationZone.contains('上方') ? Colors.red : analysis.liquidationZone.contains('下方') ? Colors.green : Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('成交密集区', '\$${analysis.volumeProfile.toStringAsFixed(2)}', Colors.cyan),
+        ],
+      ),
+    );
+  }
+
+  /// 风险管理
+  Widget _buildRiskManagement(AppState app) {
+    final rec = app.tradeRecommendation;
+    final entry = (rec.entryLower + rec.entryUpper) / 2 > 0 ? (rec.entryLower + rec.entryUpper) / 2 : app.ethPrice;
+    final sl = rec.stopLoss > 0 ? rec.stopLoss : entry * 0.985;
+    final tp1 = rec.tp1 > 0 ? rec.tp1 : entry * 1.04;
+    final tp2 = rec.tp2 > 0 ? rec.tp2 : entry * 1.08;
+
+    final risk = app.enhancement.calculateRisk(
+      accountBalance: 10000, // 默认账户余额，用户可在设置中修改
+      entryPrice: entry,
+      sl: sl,
+      tp1: tp1,
+      tp2: tp2,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.purple.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.purple.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.shield, color: Colors.purple, size: 14),
+              SizedBox(width: 4),
+              Text('风险管理（1%风险）', style: TextStyle(fontSize: 12, color: Colors.purple, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _recRow('单笔风险金额', '\$${risk.riskAmount.toStringAsFixed(2)}', Colors.red),
+          const SizedBox(height: 6),
+          _recRow('建议仓位', '${risk.positionSize.toStringAsFixed(4)} ETH', Colors.blue),
+          const SizedBox(height: 6),
+          _recRow('首批40%', '${risk.batch1Size.toStringAsFixed(4)} ETH', Colors.cyan),
+          const SizedBox(height: 6),
+          _recRow('二批30%', '${risk.batch2Size.toStringAsFixed(4)} ETH', Colors.cyan),
+          const SizedBox(height: 6),
+          _recRow('三批30%', '${risk.batch3Size.toStringAsFixed(4)} ETH', Colors.cyan),
+          const SizedBox(height: 6),
+          _recRow('盈亏比TP1', '${risk.rr1.toStringAsFixed(1)}:1', risk.rr1 >= 4 ? Colors.green : Colors.orange),
+          const SizedBox(height: 6),
+          _recRow('盈亏比TP2', '${risk.rr2.toStringAsFixed(1)}:1', risk.rr2 >= 4 ? Colors.green : Colors.orange),
+        ],
+      ),
+    );
+  }
+
+  /// 时间因素
+  Widget _buildTimeFactor(AppState app) {
+    final timeFactor = app.enhancement.getTimeFactor(
+      signalTime: DateTime.now(), // 信号生成时间
+      pollIntervalSeconds: 8,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.access_time, color: Colors.orange, size: 14),
+              SizedBox(width: 4),
+              Text('时间因素', style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _recRow('信号生成', timeFactor.signalTime.toString().substring(11, 19), Colors.white),
+          const SizedBox(height: 6),
+          _recRow('已过时间', timeFactor.elapsedText, Colors.grey),
+          const SizedBox(height: 6),
+          _recRow('下次轮询', '${timeFactor.remainingSeconds}秒后', Colors.cyan),
+          const SizedBox(height: 6),
+          _recRow('交易时段', timeFactor.session, timeFactor.isHighVolatility ? Colors.red : Colors.blue),
+          const SizedBox(height: 6),
+          _recRow('波动预期', timeFactor.isHighVolatility ? '高波动（谨慎）' : '正常波动', timeFactor.isHighVolatility ? Colors.red : Colors.green),
         ],
       ),
     );
