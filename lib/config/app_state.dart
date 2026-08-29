@@ -521,6 +521,36 @@ class AppState extends ChangeNotifier {
   /// 双引擎级联决策（多维度总闸门 → 原信号精确入场 → 最终结论）
   void _runFinalSignalDecision() {
     final multiDim = _multiDimensionDecision;
+
+    // 计算支撑位和压力位（始终计算，基于K线数据）
+    double supportPrice = 0;
+    double resistancePrice = 0;
+    try {
+      final klines = marketData.getEth5m();
+      if (klines.length >= 20) {
+        final recent = klines.sublist(klines.length - 20);
+        double low = double.infinity;
+        double high = 0;
+        for (final k in recent) {
+          if (k.low < low) low = k.low;
+          if (k.high > high) high = k.high;
+        }
+        supportPrice = low;
+        resistancePrice = high;
+      }
+    } catch (_) {}
+
+    // 从长周期分析获取更准确的支撑压力位
+    try {
+      final longCycle = signalEngine?.longCycle.analyze();
+      if (longCycle?.nearestSupport?.mid != null) {
+        supportPrice = longCycle!.nearestSupport!.mid;
+      }
+      if (longCycle?.nearestResistance?.mid != null) {
+        resistancePrice = longCycle!.nearestResistance!.mid;
+      }
+    } catch (_) {}
+
     if (multiDim == null) {
       _finalSignal = FinalSignalDecision(
         hasSignal: false,
@@ -536,6 +566,14 @@ class AppState extends ChangeNotifier {
         stopLoss: 0,
         tp1: 0,
         tp2: 0,
+        supportPrice: supportPrice,
+        resistancePrice: resistancePrice,
+        currentPrice: _ethPrice,
+        trendAnalysis: '系统正在初始化中，请稍候...',
+        marketOutlook: '等待数据加载完成',
+        entryAdvice: '等待系统初始化',
+        stopLossAdvice: '等待系统初始化',
+        takeProfitAdvice: '等待系统初始化',
         positionAdvice: '多维度决策未初始化',
         status: '多维度决策未初始化',
         failedFilters: ['多维度决策未初始化'],
@@ -614,6 +652,53 @@ class AppState extends ChangeNotifier {
         status = '无有效信号，观望';
       }
 
+      // 计算趋势分析文字（始终输出）
+      String trendAnalysis;
+      String marketOutlook;
+      String entryAdvice;
+      String stopLossAdvice;
+      String takeProfitAdvice;
+
+      if (hasFinalSignal) {
+        // 有信号时
+        final dir = direction == 'long' ? '做多' : '做空';
+        trendAnalysis = '当前市场趋势明确，双引擎共振确认$dir方向。技术面、订单流、情绪面等多维度数据一致指向$dir，趋势延续概率较高。';
+        marketOutlook = '预计短期趋势将延续，价格有望向目标位运行。建议密切关注成交量和订单流变化，确认趋势强度。';
+        entryAdvice = '建议在 \$${entryLower.toStringAsFixed(1)} - \$${entryUpper.toStringAsFixed(1)} 区间分批建仓，首次建仓40%，确认后加仓30%，突破后再加仓30%。';
+        stopLossAdvice = '严格设置止损位 \$${stopLoss.toStringAsFixed(1)}，跌破立即止损离场，单笔风险控制在账户资金的1%以内。';
+        takeProfitAdvice = '第一止盈位 \$${tp1.toStringAsFixed(1)}，到达后减仓60%并将止损上移至成本价；第二止盈位 \$${tp2.toStringAsFixed(1)}，到达后全部平仓离场。';
+      } else {
+        // 没有信号时，基于支撑压力位给出分析
+        final distToSupport = supportPrice > 0 ? ((_ethPrice - supportPrice).abs() / _ethPrice * 100).toStringAsFixed(1) : '--';
+        final distToResistance = resistancePrice > 0 ? ((resistancePrice - _ethPrice).abs() / _ethPrice * 100).toStringAsFixed(1) : '--';
+
+        if (multiScore >= 60) {
+          // 接近信号阈值
+          trendAnalysis = '当前市场正在酝酿趋势，多维度评分接近阈值。订单流数据显示有资金在悄悄布局，技术面接近关键位置，趋势即将明朗。';
+          marketOutlook = '预计短期将选择方向，建议密切关注价格在关键位置的表现。如果价格突破压力位或跌破支撑位，趋势将确认。';
+          if (resistancePrice > 0 && _ethPrice < resistancePrice) {
+            entryAdvice = '当前价格接近压力位，若有效突破 \$${resistancePrice.toStringAsFixed(1)} 可考虑追多，目标看更高位置；若在压力位遇阻回落，可考虑轻仓试空。';
+          } else if (supportPrice > 0 && _ethPrice > supportPrice) {
+            entryAdvice = '当前价格接近支撑位，若在 \$${supportPrice.toStringAsFixed(1)} 附近企稳可考虑做多，跌破支撑位则止损离场。';
+          } else {
+            entryAdvice = '建议观望等待，等待价格到达关键位置或出现明确信号后再入场。';
+          }
+          stopLossAdvice = '若尝试入场，止损位设置在关键位置外侧2%，严格控制风险，单笔风险不超过账户资金的0.5%。';
+          takeProfitAdvice = '第一止盈位看最近的支撑/压力位，第二止盈位看更远的关键位置。到达第一止盈位后减仓50%，剩余仓位跟踪止损。';
+        } else {
+          // 无信号，观望
+          trendAnalysis = '当前市场处于震荡整理阶段，多空双方力量均衡，没有明确的趋势方向。技术面、订单流、情绪面等数据不一致，市场在等待新的催化剂。';
+          marketOutlook = '预计短期将继续震荡，价格在支撑位和压力位之间波动。建议耐心等待，不要在震荡行情中频繁交易，避免被来回止损。';
+          if (supportPrice > 0 && resistancePrice > 0) {
+            entryAdvice = '当前无明确交易信号，建议观望。支撑位 \$${supportPrice.toStringAsFixed(1)}（距离约$distToSupport%），压力位 \$${resistancePrice.toStringAsFixed(1)}（距离约$distToResistance%）。价格到达支撑位企稳可轻仓试多，到达压力位遇阻可轻仓试空。';
+          } else {
+            entryAdvice = '当前无明确交易信号，建议耐心观望等待，不要盲目入场。等待市场出现明确的趋势方向和信号后再考虑交易。';
+          }
+          stopLossAdvice = '若在支撑/压力位轻仓尝试，止损位设置在关键位置外侧1.5-2%，严格执行止损纪律，单笔风险控制在账户资金的0.3%以内。';
+          takeProfitAdvice = '震荡行情中建议快进快出，第一止盈位看对面的支撑/压力位，到达后立即平仓，不要贪心持有。';
+        }
+      }
+
       _finalSignal = FinalSignalDecision(
         hasSignal: hasFinalSignal,
         direction: hasFinalSignal ? direction : 'none',
@@ -628,6 +713,14 @@ class AppState extends ChangeNotifier {
         stopLoss: stopLoss,
         tp1: tp1,
         tp2: tp2,
+        supportPrice: supportPrice,
+        resistancePrice: resistancePrice,
+        currentPrice: _ethPrice,
+        trendAnalysis: trendAnalysis,
+        marketOutlook: marketOutlook,
+        entryAdvice: entryAdvice,
+        stopLossAdvice: stopLossAdvice,
+        takeProfitAdvice: takeProfitAdvice,
         positionAdvice: positionAdvice,
         status: status,
         failedFilters: multiDim.failedFilters,
