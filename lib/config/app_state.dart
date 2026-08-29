@@ -18,6 +18,7 @@ import '../engine/signal_history_tracker.dart';
 import '../engine/signal_enhancement_manager.dart';
 import '../engine/signal_lifecycle_manager.dart';
 import '../engine/system_closed_loop_manager.dart';
+import '../engine/advanced_features.dart';
 import '../storage/database_helper.dart';
 import '../models/signal.dart';
 import '../models/position.dart';
@@ -36,6 +37,11 @@ class AppState extends ChangeNotifier {
   final SignalLifecycleManager lifecycle = SignalLifecycleManager();
   final AccountRiskManager accountRisk = AccountRiskManager();
   final AlertNotificationManager alerts = AlertNotificationManager();
+  final MLParameterOptimizer mlOptimizer = MLParameterOptimizer();
+  BacktestResult? _backtestResult;
+  BacktestResult? get backtestResult => _backtestResult;
+  Map<String, double>? _optimizedParams;
+  Map<String, double>? get optimizedParams => _optimizedParams;
   SSSResult? _sssResult;
   SSSResult? get sssResult => _sssResult;
   final DatabaseHelper database = DatabaseHelper();
@@ -200,6 +206,8 @@ class AppState extends ChangeNotifier {
       _isInitialized = true;
       _statusMessage = '初始化完成，自动启动';
       notifyListeners();
+      // 后台运行回测和参数优化
+      _runBacktestInBackground();
       start();
     } catch (e, stack) {
       _statusMessage = '初始化完成（降级模式）';

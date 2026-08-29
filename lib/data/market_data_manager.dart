@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'apis/exchange_api.dart';
+import 'dart:collection';
 import 'market_validator.dart';
 import 'websocket_manager.dart';
 import '../models/market_data.dart';
@@ -10,6 +11,8 @@ import '../utils/constants.dart';
 class MarketDataManager {
   final Map<String, List<Kline>> _klineCache = {};
   final Map<String, MarketSnapshot?> _lastSnapshots = {};
+  final Map<String, List<LiquidationOrder>> _liquidationCache = {};
+  final Map<String, OrderBookDepth?> _orderBookCache = {};
   ValidatedMarketData? _ethData;
   ValidatedMarketData? _btcData;
   final OrderFlowManager _orderFlowManager = OrderFlowManager();
@@ -24,6 +27,8 @@ class MarketDataManager {
   ValidatedMarketData? get ethData => _ethData;
   ValidatedMarketData? get btcData => _btcData;
   OrderFlowManager get orderFlow => _orderFlowManager;
+  List<LiquidationOrder> get ethLiquidations => _liquidationCache[AppConstants.ethSymbol] ?? [];
+  OrderBookDepth? get ethOrderBook => _orderBookCache[AppConstants.ethSymbol];
 
   Timer? _pollTimer;
   bool _isRunning = false;
@@ -146,6 +151,12 @@ class MarketDataManager {
         _btcDataController.add(btcResult.data!);
       } else if (btcResult.isFailed) {
         _errorController.add('BTC行情校验失败: ${btcResult.reason}');
+      }
+      
+      // 获取清算数据和订单簿深度数据（每30秒一次）
+      if (_pollCount % 4 == 0) {
+        _fetchLiquidations(AppConstants.ethSymbol);
+        _fetchOrderBook(AppConstants.ethSymbol);
       }
 
       // 更新K线缓存

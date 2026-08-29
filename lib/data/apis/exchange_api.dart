@@ -16,6 +16,52 @@ abstract class ExchangeApi {
   Future<double?> fetchFundingRate(String symbol);
   Future<double?> fetchOpenInterest(String symbol);
   Future<List<Trade>> fetchRecentTrades(String symbol, int limit);
+  Future<List<LiquidationOrder>> fetchLiquidations(String symbol, int limit);
+  Future<OrderBookDepth> fetchOrderBookDepth(String symbol, int limit);
+}
+
+/// 清算订单
+class LiquidationOrder {
+  final String symbol;
+  final double price;
+  final double quantity;
+  final String side; // 'buy' or 'sell'
+  final int time;
+  
+  LiquidationOrder({
+    required this.symbol,
+    required this.price,
+    required this.quantity,
+    required this.side,
+    required this.time,
+  });
+}
+
+/// 订单簿深度
+class OrderBookDepth {
+  final List<OrderBookLevel> bids; // 买单
+  final List<OrderBookLevel> asks; // 卖单
+  final int time;
+  
+  OrderBookDepth({
+    required this.bids,
+    required this.asks,
+    required this.time,
+  });
+  
+  double get bestBid => bids.isNotEmpty ? bids.first.price : 0;
+  double get bestAsk => asks.isNotEmpty ? asks.first.price : 0;
+  double get spread => bestAsk - bestBid;
+  double get totalBidVolume => bids.fold(0, (sum, b) => sum + b.quantity);
+  double get totalAskVolume => asks.fold(0, (sum, a) => sum + a.quantity);
+  double get bidAskRatio => totalAskVolume > 0 ? totalBidVolume / totalAskVolume : 1;
+}
+
+class OrderBookLevel {
+  final double price;
+  final double quantity;
+  
+  OrderBookLevel({required this.price, required this.quantity});
 }
 
 /// Binance API
@@ -93,6 +139,50 @@ class BinanceApi implements ExchangeApi {
       )).toList();
     } catch (_) {
       return [];
+    }
+  }
+
+  @override
+  Future<List<LiquidationOrder>> fetchLiquidations(String symbol, int limit) async {
+    try {
+      final resp = await RobustHttpClient.get('$baseUrl/fapi/v1/forceOrders?symbol=$symbol&limit=$limit');
+      if (resp == null || resp.statusCode != 200) return [];
+      final List<dynamic> data = json.decode(resp.body);
+      return data.map((e) => LiquidationOrder(
+        symbol: e['symbol'] ?? symbol,
+        price: double.parse(e['price']?.toString() ?? '0'),
+        quantity: double.parse(e['origQty']?.toString() ?? '0'),
+        side: e['side']?.toString().toLowerCase() ?? 'sell',
+        time: e['time'] is int ? e['time'] : int.parse(e['time']?.toString() ?? '0'),
+      )).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  @override
+  Future<OrderBookDepth> fetchOrderBookDepth(String symbol, int limit) async {
+    try {
+      final resp = await RobustHttpClient.get('$baseUrl/fapi/v1/depth?symbol=$symbol&limit=$limit');
+      if (resp == null || resp.statusCode != 200) {
+        return OrderBookDepth(bids: [], asks: [], time: DateTime.now().millisecondsSinceEpoch);
+      }
+      final data = json.decode(resp.body);
+      final bids = (data['bids'] as List).map((e) => OrderBookLevel(
+        price: double.parse(e[0].toString()),
+        quantity: double.parse(e[1].toString()),
+      )).toList();
+      final asks = (data['asks'] as List).map((e) => OrderBookLevel(
+        price: double.parse(e[0].toString()),
+        quantity: double.parse(e[1].toString()),
+      )).toList();
+      return OrderBookDepth(
+        bids: bids,
+        asks: asks,
+        time: data['lastUpdateId'] is int ? data['lastUpdateId'] : DateTime.now().millisecondsSinceEpoch,
+      );
+    } catch (_) {
+      return OrderBookDepth(bids: [], asks: [], time: DateTime.now().millisecondsSinceEpoch);
     }
   }
 }
@@ -222,6 +312,57 @@ class OkxApi implements ExchangeApi {
       )).toList();
     } catch (_) {
       return [];
+    }
+  }
+
+  @override
+  Future<List<LiquidationOrder>> fetchLiquidations(String symbol, int limit) async {
+    try {
+      final instId = _toOkxSymbol(symbol);
+      final resp = await RobustHttpClient.get('$baseUrl/api/v5/public/liquidation-orders?instId=$instId&limit=$limit');
+      if (resp == null || resp.statusCode != 200) return [];
+      final data = json.decode(resp.body);
+      if (data['code'] != '0' || (data['data'] as List).isEmpty) return [];
+      return (data['data'] as List).map((e) => LiquidationOrder(
+        symbol: symbol,
+        price: double.parse(e['bkPx']?.toString() ?? '0'),
+        quantity: double.parse(e['sz']?.toString() ?? '0'),
+        side: e['side']?.toString().toLowerCase() ?? 'sell',
+        time: int.parse(e['ts']?.toString() ?? '0'),
+      )).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  @override
+  Future<OrderBookDepth> fetchOrderBookDepth(String symbol, int limit) async {
+    try {
+      final instId = _toOkxSymbol(symbol);
+      final resp = await RobustHttpClient.get('$baseUrl/api/v5/market/books?instId=$instId&sz=$limit');
+      if (resp == null || resp.statusCode != 200) {
+        return OrderBookDepth(bids: [], asks: [], time: DateTime.now().millisecondsSinceEpoch);
+      }
+      final data = json.decode(resp.body);
+      if (data['code'] != '0' || (data['data'] as List).isEmpty) {
+        return OrderBookDepth(bids: [], asks: [], time: DateTime.now().millisecondsSinceEpoch);
+      }
+      final book = data['data'][0];
+      final bids = (book['bids'] as List).map((e) => OrderBookLevel(
+        price: double.parse(e[0].toString()),
+        quantity: double.parse(e[1].toString()),
+      )).toList();
+      final asks = (book['asks'] as List).map((e) => OrderBookLevel(
+        price: double.parse(e[0].toString()),
+        quantity: double.parse(e[1].toString()),
+      )).toList();
+      return OrderBookDepth(
+        bids: bids,
+        asks: asks,
+        time: int.parse(book['ts']?.toString() ?? '0'),
+      );
+    } catch (_) {
+      return OrderBookDepth(bids: [], asks: [], time: DateTime.now().millisecondsSinceEpoch);
     }
   }
 }
@@ -400,6 +541,11 @@ class BitgetApi implements ExchangeApi {
 
   @override
   Future<List<Trade>> fetchRecentTrades(String symbol, int limit) async => [];
+  @override
+  Future<List<LiquidationOrder>> fetchLiquidations(String symbol, int limit) async => [];
+  @override
+  Future<OrderBookDepth> fetchOrderBookDepth(String symbol, int limit) async =>
+      OrderBookDepth(bids: [], asks: [], time: DateTime.now().millisecondsSinceEpoch);
 }
 
 /// Gate API
@@ -480,6 +626,11 @@ class GateApi implements ExchangeApi {
 
   @override
   Future<List<Trade>> fetchRecentTrades(String symbol, int limit) async => [];
+  @override
+  Future<List<LiquidationOrder>> fetchLiquidations(String symbol, int limit) async => [];
+  @override
+  Future<OrderBookDepth> fetchOrderBookDepth(String symbol, int limit) async =>
+      OrderBookDepth(bids: [], asks: [], time: DateTime.now().millisecondsSinceEpoch);
 }
 
 /// 交易所工厂
