@@ -1551,7 +1551,8 @@ class SignalPanel extends StatelessWidget {
     final rec = app.tradeRecommendation;
 
     // 优先使用双引擎级联决策的结果
-    final bool useFinalSignal = finalSignal != null && finalSignal.hasSignal;
+    final bool hasFinalSignal = finalSignal != null;
+    final bool useFinalSignal = hasFinalSignal && finalSignal.hasSignal;
     final bool isLong = useFinalSignal
         ? finalSignal.direction == 'long'
         : rec.direction == TradeRecommendationDirection.long;
@@ -1692,30 +1693,47 @@ class SignalPanel extends StatelessWidget {
               ],
             ),
           ),
-          // 双引擎状态显示
-          if (useFinalSignal) ...[
+          // 双引擎状态显示（即便是没有信号也显示，让用户知道当前状态）
+          if (hasFinalSignal) ...[
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.cyan.withOpacity(0.1),
+                color: useFinalSignal ? Colors.cyan.withOpacity(0.15) : Colors.grey.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.cyan.withOpacity(0.3)),
+                border: Border.all(color: useFinalSignal ? Colors.cyan.withOpacity(0.5) : Colors.grey.withOpacity(0.3)),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.auto_awesome, color: Colors.cyan, size: 14),
-                  const SizedBox(width: 6),
-                  Text(
-                    '双引擎级联: ${finalSignal.engineStatus}',
-                    style: const TextStyle(color: Colors.cyan, fontSize: 11, fontWeight: FontWeight.w600),
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome, color: useFinalSignal ? Colors.cyan : Colors.grey, size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        '双引擎级联: ${finalSignal.engineStatus}',
+                        style: TextStyle(color: useFinalSignal ? Colors.cyan : Colors.grey, fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '多维度:${finalSignal.multiScore.toStringAsFixed(0)} 原信号:${finalSignal.originalConfidence.toStringAsFixed(0)}',
+                        style: const TextStyle(color: Colors.grey, fontSize: 10),
+                      ),
+                    ],
                   ),
-                  const Spacer(),
-                  Text(
-                    '多维度:${finalSignal.multiScore.toStringAsFixed(0)} 原信号:${finalSignal.originalConfidence.toStringAsFixed(0)}',
-                    style: const TextStyle(color: Colors.grey, fontSize: 10),
-                  ),
+                  if (!useFinalSignal) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '状态: ${finalSignal.status}',
+                      style: const TextStyle(color: Colors.orange, fontSize: 10),
+                    ),
+                    if (finalSignal.failedFilters.isNotEmpty)
+                      Text(
+                        '过滤: ${finalSignal.failedFilters.join(", ")}',
+                        style: const TextStyle(color: Colors.red, fontSize: 9),
+                      ),
+                  ],
                 ],
               ),
             ),
