@@ -1027,7 +1027,7 @@ class SignalPanel extends StatelessWidget {
 
   /// 技术面深度分析
   Widget _buildTechnicalDeepAnalysis(AppState app) {
-    final klines = <Kline>[]; // K线数据从分析引擎获取
+    final klines = app.marketData.getEth5m(); // 从marketData获取真实5分钟K线
     final analysis = app.enhancement.analyzeTechnical(klines: klines, direction: 'long');
 
     return Container(
@@ -1286,7 +1286,7 @@ class SignalPanel extends StatelessWidget {
     }
 
     // 预计到达时间（使用8因素时间预测引擎）
-    final klines = <Kline>[]; // K线数据待接入，暂时使用简化计算
+    final klines = app.marketData.getEth5m(); // 从marketData获取真实5分钟K线
     final etaEntryResult = TimePredictionEngine.predict(
       currentPrice: currentPrice,
       targetPrice: entry,
