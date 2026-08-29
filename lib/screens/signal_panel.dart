@@ -8,6 +8,7 @@ import '../engine/risk/risk_manager.dart';
 import '../models/trade_recommendation.dart';
 import '../models/market_data.dart';
 import '../engine/time_prediction_engine.dart';
+import '../engine/signal_lifecycle_manager.dart';
 import '../widgets/kline_chart.dart';
 import '../widgets/order_flow_visualization.dart';
 import '../engine/news/news_analyzer.dart';
@@ -1327,6 +1328,8 @@ class SignalPanel extends StatelessWidget {
         return Colors.teal;
       case SignalLifecycleState.expired:
         return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 

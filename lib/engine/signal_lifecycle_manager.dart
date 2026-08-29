@@ -86,9 +86,9 @@ class SignalLifecycleRecord {
 /// 触发事件记录
 class TriggerEvent {
   final DateTime enterAt; // 进入时间
-  final DateTime? exitAt; // 离开时间
+  DateTime? exitAt; // 离开时间
   final double enterPrice; // 进入时价格
-  final double? exitPrice; // 离开时价格
+  double? exitPrice; // 离开时价格
 
   TriggerEvent({
     required this.enterAt,
