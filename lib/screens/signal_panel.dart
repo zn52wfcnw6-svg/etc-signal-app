@@ -356,6 +356,9 @@ class SignalPanel extends StatelessWidget {
               const SizedBox(height: 12),
               // 时间因素
               _buildTimeFactor(app),
+              const SizedBox(height: 12),
+              // 最终总结（所有模块服务于此）
+              _buildFinalSummary(app),
             ] else ...[
               Container(
                 width: double.infinity,
@@ -1061,16 +1064,61 @@ class SignalPanel extends StatelessWidget {
     );
   }
 
-  /// 订单流深度分析
+  /// 订单流深度分析（从deepOrderFlow获取真实数据）
   Widget _buildOrderflowDeepAnalysis(AppState app) {
-    final orderflow = app.deepOrderFlow;
-    final analysis = app.enhancement.analyzeOrderflow(
-      cvd: 0, // 从deepOrderFlow获取
-      delta: 0, // 从deepOrderFlow获取
-      bigOrderDirection: '均衡', // 从deepOrderFlow获取
-      liquidationRisk: 0, // 从deepOrderFlow获取
-      volumeProfile: 0, // 从deepOrderFlow获取
-    );
+    final of = app.deepOrderFlow;
+    final largeOrders = of?.largeOrders;
+    final volumeDensity = of?.volumeDensity;
+    final liquidation = of?.liquidation;
+    final orderBook = of?.orderBook;
+
+    // 大单方向
+    String bigOrderDir = '数据不足';
+    Color bigOrderColor = Colors.grey;
+    if (largeOrders != null) {
+      if (largeOrders.bullishPressure) {
+        bigOrderDir = '买盘主导（买${largeOrders.buyLargeOrders}/卖${largeOrders.sellLargeOrders}）';
+        bigOrderColor = Colors.green;
+      } else if (largeOrders.bearishPressure) {
+        bigOrderDir = '卖盘主导（买${largeOrders.buyLargeOrders}/卖${largeOrders.sellLargeOrders}）';
+        bigOrderColor = Colors.red;
+      } else {
+        bigOrderDir = '多空均衡（买${largeOrders.buyLargeOrders}/卖${largeOrders.sellLargeOrders}）';
+      }
+    }
+
+    // 清算挤压
+    String liquidationText = '数据不足';
+    Color liquidationColor = Colors.grey;
+    if (liquidation != null) {
+      if (liquidation.longSqueezeRisk) {
+        liquidationText = '多头挤压风险（可能推高）';
+        liquidationColor = Colors.green;
+      } else if (liquidation.shortSqueezeRisk) {
+        liquidationText = '空头挤压风险（可能砸低）';
+        liquidationColor = Colors.red;
+      } else {
+        liquidationText = '无明显挤压';
+      }
+    }
+
+    // 订单簿失衡
+    String orderBookText = '数据不足';
+    Color orderBookColor = Colors.grey;
+    if (orderBook != null) {
+      if (orderBook.bidHeavy) {
+        orderBookText = '买盘较重（承接强）';
+        orderBookColor = Colors.green;
+      } else if (orderBook.askHeavy) {
+        orderBookText = '卖盘较重（抛压大）';
+        orderBookColor = Colors.red;
+      } else {
+        orderBookText = '买卖均衡';
+      }
+    }
+
+    // 成交密集区
+    final densityPrice = volumeDensity?.highestDensityPrice ?? 0;
 
     return Container(
       width: double.infinity,
@@ -1091,15 +1139,19 @@ class SignalPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          _recRow('CVD累积', '${analysis.cvd.toStringAsFixed(0)} - ${analysis.cvdTrend}', analysis.cvd > 0 ? Colors.green : analysis.cvd < 0 ? Colors.red : Colors.grey),
+          _recRow('大单方向', bigOrderDir, bigOrderColor),
           const SizedBox(height: 6),
-          _recRow('Delta压力', '${analysis.delta.toStringAsFixed(0)} - ${analysis.deltaPressure}', analysis.delta > 0 ? Colors.green : analysis.delta < 0 ? Colors.red : Colors.grey),
+          _recRow('大单比例', largeOrders != null ? '${largeOrders.largeOrderRatio.toStringAsFixed(2)}' : '数据不足', Colors.grey),
           const SizedBox(height: 6),
-          _recRow('大单方向', analysis.bigOrderDirection, analysis.bigOrderDirection.contains('买') ? Colors.green : analysis.bigOrderDirection.contains('卖') ? Colors.red : Colors.grey),
+          _recRow('订单簿', orderBookText, orderBookColor),
           const SizedBox(height: 6),
-          _recRow('清算挤压', analysis.liquidationZone, analysis.liquidationZone.contains('上方') ? Colors.red : analysis.liquidationZone.contains('下方') ? Colors.green : Colors.grey),
+          _recRow('买卖深度比', orderBook != null ? '${orderBook.bidAskRatio.toStringAsFixed(2)}' : '数据不足', Colors.grey),
           const SizedBox(height: 6),
-          _recRow('成交密集区', '\$${analysis.volumeProfile.toStringAsFixed(2)}', Colors.cyan),
+          _recRow('清算挤压', liquidationText, liquidationColor),
+          const SizedBox(height: 6),
+          _recRow('成交密集区', densityPrice > 0 ? '\$${densityPrice.toStringAsFixed(2)}' : '数据不足', Colors.cyan),
+          const SizedBox(height: 6),
+          _recRow('综合信号', of != null ? '看涨${of.bullishSignals}/看跌${of.bearishSignals}' : '数据不足', of != null && of.bullishSignals > of.bearishSignals ? Colors.green : of != null && of.bearishSignals > of.bullishSignals ? Colors.red : Colors.grey),
         ],
       ),
     );
@@ -1193,6 +1245,220 @@ class SignalPanel extends StatelessWidget {
           _recRow('交易时段', timeFactor.session, timeFactor.isHighVolatility ? Colors.red : Colors.blue),
           const SizedBox(height: 6),
           _recRow('波动预期', timeFactor.isHighVolatility ? '高波动（谨慎）' : '正常波动', timeFactor.isHighVolatility ? Colors.red : Colors.green),
+        ],
+      ),
+    );
+  }
+
+  /// 最终总结（所有模块服务于此，给出最终订单设计）
+  Widget _buildFinalSummary(AppState app) {
+    final rec = app.tradeRecommendation;
+    final isLong = rec.direction == TradeRecommendationDirection.long;
+    final isShort = rec.direction == TradeRecommendationDirection.short;
+    final currentPrice = app.ethPrice;
+    final entry = (rec.entryLower + rec.entryUpper) / 2;
+    final sl = rec.stopLoss;
+    final tp1 = rec.tp1;
+    final tp2 = rec.tp2;
+
+    // 综合评分（从SSS级获取）
+    final direction = isLong ? 'long' : isShort ? 'short' : 'long';
+    final technicalScore = isLong || isShort ? 75.0 : 50.0;
+    final sssResult = app.multiDimensionData.calculateSSSScore(direction, technicalScore: technicalScore);
+    final totalScore = sssResult.totalScore;
+
+    // 信心度
+    String confidence;
+    Color confidenceColor;
+    if (totalScore >= 85) {
+      confidence = '极高信心（SSS级）';
+      confidenceColor = Colors.green;
+    } else if (totalScore >= 75) {
+      confidence = '高信心（SS级）';
+      confidenceColor = Colors.lightGreen;
+    } else if (totalScore >= 65) {
+      confidence = '中等信心（S级）';
+      confidenceColor = Colors.orange;
+    } else {
+      confidence = '低信心（谨慎）';
+      confidenceColor = Colors.red;
+    }
+
+    // 预计到达时间（基于价格距离和波动率估算）
+    String calculateETA(double targetPrice) {
+      if (currentPrice <= 0 || targetPrice <= 0) return '数据不足';
+      final distance = (targetPrice - currentPrice).abs();
+      final percentMove = (distance / currentPrice) * 100;
+      // 假设平均每小时波动0.5%，估算时间
+      final hours = percentMove / 0.5;
+      if (hours < 1) return '约${(hours * 60).toStringAsFixed(0)}分钟';
+      if (hours < 24) return '约${hours.toStringAsFixed(1)}小时';
+      return '约${(hours / 24).toStringAsFixed(1)}天';
+    }
+
+    final etaEntry = calculateETA(entry);
+    final etaTp1 = calculateETA(tp1);
+    final etaTp2 = calculateETA(tp2);
+
+    // 最终方向
+    String finalDirection;
+    Color directionColor;
+    if (isLong) {
+      finalDirection = '最终建议：做多';
+      directionColor = Colors.green;
+    } else if (isShort) {
+      finalDirection = '最终建议：做空';
+      directionColor = Colors.red;
+    } else {
+      finalDirection = '最终建议：观望';
+      directionColor = Colors.grey;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.deepPurple.withOpacity(0.3),
+            Colors.purple.withOpacity(0.15),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.purple.withOpacity(0.5), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.flag, color: Colors.purpleAccent, size: 16),
+                  SizedBox(width: 6),
+                  Text('最终总结 & 订单设计', style: TextStyle(fontSize: 14, color: Colors.purpleAccent, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: confidenceColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(confidence, style: TextStyle(color: confidenceColor, fontSize: 10, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // 最终方向
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: directionColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: directionColor.withOpacity(0.4)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(finalDirection, style: TextStyle(color: directionColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('综合评分：${totalScore.toStringAsFixed(0)}分', style: TextStyle(color: directionColor, fontSize: 14, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          // 订单设计
+          if (isLong || isShort) ...[
+            _recRow('入场区间', '\$${rec.entryLower.toStringAsFixed(2)} - \$${rec.entryUpper.toStringAsFixed(2)}', Colors.blue),
+            const SizedBox(height: 6),
+            _recRow('止损SL', '\$${sl.toStringAsFixed(2)}', Colors.red),
+            const SizedBox(height: 6),
+            _recRow('止盈TP1', '\$${tp1.toStringAsFixed(2)}', Colors.green),
+            const SizedBox(height: 6),
+            _recRow('止盈TP2', '\$${tp2.toStringAsFixed(2)}', Colors.green),
+            const SizedBox(height: 6),
+            _recRow('盈亏比', '${rec.riskRewardRatio.toStringAsFixed(1)}:1', rec.riskRewardRatio >= 4 ? Colors.green : Colors.orange),
+            const SizedBox(height: 6),
+            _recRow('建议仓位', '${(rec.positionSize * 100).toStringAsFixed(0)}%', Colors.purple),
+            const SizedBox(height: 10),
+            // 预计到达时间
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.cyan.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.cyan.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.timer, color: Colors.cyan, size: 14),
+                      SizedBox(width: 4),
+                      Text('预计到达时间（基于波动率估算）', style: TextStyle(fontSize: 12, color: Colors.cyan, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _recRow('到达入场区', etaEntry, Colors.blue),
+                  const SizedBox(height: 4),
+                  _recRow('到达TP1', etaTp1, Colors.green),
+                  const SizedBox(height: 4),
+                  _recRow('到达TP2', etaTp2, Colors.green),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            // 执行建议
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('执行建议', style: TextStyle(fontSize: 12, color: Colors.amber, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Text(
+                    totalScore >= 75
+                        ? '1. 分批建仓：首仓40%，确认后加30%，盈利后加30%\n2. 严格止损：到达SL立即平仓，不扛单\n3. TP1减仓60%，止损移至成本\n4. TP2全部平仓，落袋为安'
+                        : totalScore >= 65
+                            ? '1. 轻仓试探：仓位减半，严格止损\n2. 等待确认：信号确认后再加仓\n3. 到达TP1减仓50%\n4. 密切关注行情变化'
+                            : '1. 建议观望：信号质量不足，不建议入场\n2. 等待更好时机：价格到达关键位再考虑\n3. 严格控制风险：即使入场也要极小仓位\n4. 关注下一次信号',
+                    style: const TextStyle(fontSize: 11, color: Colors.white70, height: 1.5),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('当前无明确交易机会', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  Text(rec.reason, style: const TextStyle(fontSize: 12, color: Colors.white54)),
+                  const SizedBox(height: 6),
+                  const Text('建议：耐心等待价格到达关键支撑/压力位，再考虑入场', style: TextStyle(fontSize: 11, color: Colors.amber)),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
