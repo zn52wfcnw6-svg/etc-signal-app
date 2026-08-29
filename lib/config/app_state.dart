@@ -19,6 +19,7 @@ import '../engine/signal_enhancement_manager.dart';
 import '../engine/signal_lifecycle_manager.dart';
 import '../engine/system_closed_loop_manager.dart';
 import '../engine/advanced_features.dart';
+import '../engine/multi_dimension_signal_engine.dart';
 import '../storage/database_helper.dart';
 import '../models/signal.dart';
 import '../models/position.dart';
@@ -42,6 +43,8 @@ class AppState extends ChangeNotifier {
   BacktestResult? get backtestResult => _backtestResult;
   Map<String, double>? _optimizedParams;
   Map<String, double>? get optimizedParams => _optimizedParams;
+  SignalDecision? _multiDimensionDecision;
+  SignalDecision? get multiDimensionDecision => _multiDimensionDecision;
   SSSResult? _sssResult;
   SSSResult? get sssResult => _sssResult;
   final DatabaseHelper database = DatabaseHelper();
@@ -178,6 +181,10 @@ class AppState extends ChangeNotifier {
           lifecycle.updateSignals(currentPrice: data.price, currentTime: DateTime.now());
           // 更新账户风险持仓浮动盈亏
           accountRisk.updatePositions(data.price);
+          // 运行多维度信号决策（每10秒一次）
+          if (DateTime.now().second % 10 < 3) {
+            _runMultiDimensionDecision();
+          }
         } catch (_) {}
         notifyListeners();
       });
