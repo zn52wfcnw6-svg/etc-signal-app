@@ -447,6 +447,13 @@ class BybitApi implements ExchangeApi {
     // Bybit逐笔数据质量一般，返回空，订单流只用Binance+OKX
     return [];
   }
+
+  @override
+  Future<List<LiquidationOrder>> fetchLiquidations(String symbol, int limit) async => [];
+
+  @override
+  Future<OrderBookDepth> fetchOrderBookDepth(String symbol, int limit) async =>
+      OrderBookDepth(bids: [], asks: [], time: DateTime.now().millisecondsSinceEpoch);
 }
 
 /// Bitget API
