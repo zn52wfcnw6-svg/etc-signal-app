@@ -102,6 +102,9 @@ class HudSignalPanel extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          // 数据状态指示条
+          _buildDataStatusBar(app),
           const SizedBox(height: 16),
 
           // 评分环形图 + 方向
@@ -295,7 +298,7 @@ class HudSignalPanel extends StatelessWidget {
             const SizedBox(height: 16),
 
             // 预计到达时间
-            _buildHudLabel('预计到达时间 ETA'),
+            _buildHudLabel('预计到达时间 ETA (预测)'),
             const SizedBox(height: 6),
             Container(
               width: double.infinity,
@@ -384,59 +387,118 @@ class HudSignalPanel extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // 执行指令
+            // 执行指令（动态仓位）
             _buildHudLabel('执行指令 EXECUTE'),
             const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: Colors.orange.withOpacity(0.5),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '⚡ 首仓40% @ \$${((signal.entryLower + signal.entryUpper) / 2).toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: Colors.orange,
-                      fontSize: 13,
-                      fontFamily: 'monospace',
+            Builder(
+              builder: (context) {
+                final score = signal.confidenceScore;
+                final positionMultiplier = score >= 80 ? 1.0 : 0.7;
+                final riskPercent = 1.0 * positionMultiplier;
+                final entryMid = (signal.entryLower + signal.entryUpper) / 2;
+                final riskDistance = (entryMid - signal.stopLoss).abs();
+                final accountBalance = app.accountRisk.accountBalance;
+                final riskAmount = accountBalance * riskPercent / 100;
+                final positionSize = riskDistance > 0 ? riskAmount / riskDistance : 0;
+                
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: Colors.orange.withOpacity(0.5),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '⚡ 确认信号后加30%，盈利确认后加30%',
-                    style: TextStyle(
-                      color: Colors.orange,
-                      fontSize: 13,
-                      fontFamily: 'monospace',
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 仓位计算结果
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.green.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('信号质量', style: TextStyle(color: Colors.grey, fontSize: 10, fontFamily: 'monospace')),
+                                Text('${score}分 (${score >= 80 ? 'A级' : 'B级'})', style: TextStyle(color: score >= 80 ? Colors.green : Colors.orange, fontSize: 10, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('仓位系数', style: TextStyle(color: Colors.grey, fontSize: 10, fontFamily: 'monospace')),
+                                Text('×${positionMultiplier.toStringAsFixed(1)}', style: const TextStyle(color: Colors.cyan, fontSize: 10, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('单笔风险', style: TextStyle(color: Colors.grey, fontSize: 10, fontFamily: 'monospace')),
+                                Text('${riskPercent.toStringAsFixed(1)}% (\$${riskAmount.toStringAsFixed(2)})', style: const TextStyle(color: Colors.red, fontSize: 10, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('建议仓位', style: TextStyle(color: Colors.grey, fontSize: 10, fontFamily: 'monospace')),
+                                Text('${positionSize.toStringAsFixed(4)} ETH', style: const TextStyle(color: Colors.green, fontSize: 10, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '⚡ 首仓40% @ \$${entryMid.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontSize: 13,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        '⚡ 确认信号后加30%，盈利确认后加30%',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 13,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        '⚡ TP1减仓60%，止损移至开仓成本',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 13,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        '⚡ TP2全部平仓，不达标则止损离场',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 13,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '⚡ TP1减仓60%，止损移至开仓成本',
-                    style: TextStyle(
-                      color: Colors.orange,
-                      fontSize: 13,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '⚡ TP2全部平仓，不达标则止损离场',
-                    style: TextStyle(
-                      color: Colors.orange,
-                      fontSize: 13,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ] else ...[
             Container(
@@ -521,6 +583,76 @@ class HudSignalPanel extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// 数据状态指示条
+  Widget _buildDataStatusBar(AppState app) {
+    final ethPrice = app.ethPrice;
+    final hasKlines = app.marketData.getEth5m().isNotEmpty;
+    final hasOrderFlow = app.marketData.orderFlow.orderFlowBars.isNotEmpty;
+    final multiDim = app.multiDimensionData;
+    final hasNews = multiDim.news.isNotEmpty;
+    final hasMacro = multiDim.sp500Change != 0 || multiDim.goldChange != 0;
+    final hasSentiment = multiDim.fearGreedIndex != 50;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildDataStatusItem('行情', ethPrice > 0),
+            const SizedBox(width: 6),
+            _buildDataStatusItem('K线', hasKlines),
+            const SizedBox(width: 6),
+            _buildDataStatusItem('订单流', hasOrderFlow),
+            const SizedBox(width: 6),
+            _buildDataStatusItem('情绪', hasSentiment),
+            const SizedBox(width: 6),
+            _buildDataStatusItem('宏观', hasMacro),
+            const SizedBox(width: 6),
+            _buildDataStatusItem('新闻', hasNews),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDataStatusItem(String label, bool ok) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: ok ? Colors.green : Colors.red,
+            boxShadow: [
+              BoxShadow(
+                color: (ok ? Colors.green : Colors.red).withOpacity(0.6),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: TextStyle(
+            color: ok ? Colors.green : Colors.red,
+            fontSize: 9,
+            fontFamily: 'monospace',
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
@@ -946,10 +1078,28 @@ class _HudAnalysisConsoleState extends State<_HudAnalysisConsole> {
             fontFamily: 'monospace',
           ),
         ),
-        const SizedBox(height: 12),
-        _buildOfRow('大单买入', '${of?.bullishSignals ?? 0}笔', Colors.green),
         const SizedBox(height: 6),
-        _buildOfRow('大单卖出', '${of?.bearishSignals ?? 0}笔', Colors.red),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+          ),
+          child: const Text(
+            '⚠ 大单/清算/订单簿为基于成交数据的估算值，非交易所原始数据',
+            style: TextStyle(
+              color: Colors.orange,
+              fontSize: 9,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildOfRow('大单买入(估)', '${of?.bullishSignals ?? 0}笔', Colors.green),
+        const SizedBox(height: 6),
+        _buildOfRow('大单卖出(估)', '${of?.bearishSignals ?? 0}笔', Colors.red),
         const SizedBox(height: 6),
         _buildOfRow('买卖比', ((of?.bullishSignals ?? 1) / (of?.bearishSignals ?? 1)).toStringAsFixed(2),
             ((of?.bullishSignals ?? 1) / (of?.bearishSignals ?? 1)) >= 1 ? Colors.green : Colors.red),

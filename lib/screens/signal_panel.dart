@@ -41,9 +41,11 @@ class SignalPanel extends StatelessWidget {
               // 状态卡片
               _buildStatusCard(app, riskLevel, longCycle, currentPrice),
               const SizedBox(height: 16),
-              // 信号或市场分析（HUD风格）
-              if (signal != null && signal.status == SignalStatus.confirmed && !isFrozen)
+              // 信号或市场分析（HUD风格，SSS>=70分才显示）
+              if (signal != null && signal.status == SignalStatus.confirmed && !isFrozen && signal.confidenceScore >= 70)
                 HudSignalPanel(app: app)
+              else if (signal != null && signal.status == SignalStatus.confirmed && !isFrozen && signal.confidenceScore < 70)
+                _buildLowQualitySignalCard(signal, app)
               else
                 _buildMarketAnalysisCard(app, longCycle, riskLevel, currentPrice),
               const SizedBox(height: 16),
@@ -282,6 +284,53 @@ class SignalPanel extends StatelessWidget {
                 const Text('实时扫描中', style: TextStyle(fontSize: 11, color: Colors.green, fontFamily: 'monospace')),
               ]),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 低质量信号提示卡片（SSS<70分）
+  Widget _buildLowQualitySignalCard(TradingSignal signal, AppState app) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.orange.withOpacity(0.5), width: 1),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 32),
+          const SizedBox(height: 8),
+          Text(
+            '信号质量不足',
+            style: TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'SSS评分: ${signal.confidenceScore}分 (低于70分门槛)',
+            style: TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'monospace'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '方向: ${signal.direction == SignalDirection.long ? '做多' : '做空'} | 盈亏比: ${signal.riskRewardRatio.toStringAsFixed(1)}:1',
+            style: TextStyle(color: Colors.grey, fontSize: 11, fontFamily: 'monospace'),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              '⚠ 信号质量未达交易门槛，建议观望等待更高质量信号',
+              style: TextStyle(color: Colors.orange, fontSize: 11, fontFamily: 'monospace'),
+              textAlign: TextAlign.center,
+            ),
           ),
         ],
       ),
