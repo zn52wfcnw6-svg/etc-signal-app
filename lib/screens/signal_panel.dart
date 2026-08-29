@@ -7,6 +7,7 @@ import '../engine/long_cycle/long_cycle_manager.dart';
 import '../engine/risk/risk_manager.dart';
 import '../models/trade_recommendation.dart';
 import '../models/market_data.dart';
+import '../engine/time_prediction_engine.dart';
 import '../widgets/kline_chart.dart';
 import '../widgets/order_flow_visualization.dart';
 import '../engine/news/news_analyzer.dart';
@@ -1284,21 +1285,29 @@ class SignalPanel extends StatelessWidget {
       confidenceColor = Colors.red;
     }
 
-    // 预计到达时间（基于价格距离和波动率估算）
-    String calculateETA(double targetPrice) {
-      if (currentPrice <= 0 || targetPrice <= 0) return '数据不足';
-      final distance = (targetPrice - currentPrice).abs();
-      final percentMove = (distance / currentPrice) * 100;
-      // 假设平均每小时波动0.5%，估算时间
-      final hours = percentMove / 0.5;
-      if (hours < 1) return '约${(hours * 60).toStringAsFixed(0)}分钟';
-      if (hours < 24) return '约${hours.toStringAsFixed(1)}小时';
-      return '约${(hours / 24).toStringAsFixed(1)}天';
-    }
-
-    final etaEntry = calculateETA(entry);
-    final etaTp1 = calculateETA(tp1);
-    final etaTp2 = calculateETA(tp2);
+    // 预计到达时间（使用8因素时间预测引擎）
+    final klines = <Kline>[]; // K线数据待接入，暂时使用简化计算
+    final etaEntryResult = TimePredictionEngine.predict(
+      currentPrice: currentPrice,
+      targetPrice: entry,
+      klines: klines,
+      direction: isLong ? 'long' : 'short',
+      currentTime: DateTime.now(),
+    );
+    final etaTp1Result = TimePredictionEngine.predict(
+      currentPrice: currentPrice,
+      targetPrice: tp1,
+      klines: klines,
+      direction: isLong ? 'long' : 'short',
+      currentTime: DateTime.now(),
+    );
+    final etaTp2Result = TimePredictionEngine.predict(
+      currentPrice: currentPrice,
+      targetPrice: tp2,
+      klines: klines,
+      direction: isLong ? 'long' : 'short',
+      currentTime: DateTime.now(),
+    );
 
     // 最终方向
     String finalDirection;
@@ -1385,10 +1394,10 @@ class SignalPanel extends StatelessWidget {
             const SizedBox(height: 6),
             _recRow('建议仓位', '${(rec.positionSize * 100).toStringAsFixed(0)}%', Colors.purple),
             const SizedBox(height: 10),
-            // 预计到达时间
+            // 预计到达时间（8因素时间预测引擎）
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.cyan.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
@@ -1397,19 +1406,47 @@ class SignalPanel extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(Icons.timer, color: Colors.cyan, size: 14),
-                      SizedBox(width: 4),
-                      Text('预计到达时间（基于波动率估算）', style: TextStyle(fontSize: 12, color: Colors.cyan, fontWeight: FontWeight.w600)),
+                      const Row(
+                        children: [
+                          Icon(Icons.timer, color: Colors.cyan, size: 14),
+                          SizedBox(width: 4),
+                          Text('预计到达时间（8因素预测引擎）', style: TextStyle(fontSize: 12, color: Colors.cyan, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: etaTp1Result.confidence >= 60 ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text('置信度 ${etaTp1Result.confidenceText}', style: TextStyle(fontSize: 10, color: etaTp1Result.confidence >= 60 ? Colors.green : Colors.orange, fontWeight: FontWeight.w600)),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  _recRow('到达入场区', etaEntry, Colors.blue),
+                  _recRow('到达入场区', '${etaEntryResult.mostLikely}（最快${etaEntryResult.fastest}/最慢${etaEntryResult.slowest}）', Colors.blue),
                   const SizedBox(height: 4),
-                  _recRow('到达TP1', etaTp1, Colors.green),
+                  _recRow('到达TP1', '${etaTp1Result.mostLikely}（最快${etaTp1Result.fastest}/最慢${etaTp1Result.slowest}）', Colors.green),
                   const SizedBox(height: 4),
-                  _recRow('到达TP2', etaTp2, Colors.green),
+                  _recRow('到达TP2', '${etaTp2Result.mostLikely}（最快${etaTp2Result.fastest}/最慢${etaTp2Result.slowest}）', Colors.green),
+                  const SizedBox(height: 8),
+                  const Divider(color: Colors.cyan, height: 1),
+                  const SizedBox(height: 6),
+                  const Text('预测因素（8维度）', style: TextStyle(fontSize: 11, color: Colors.cyan, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  ...etaTp1Result.factors.entries.map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(e.key, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                        Text(e.value, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                      ],
+                    ),
+                  )),
                 ],
               ),
             ),
