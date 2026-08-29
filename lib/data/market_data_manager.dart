@@ -325,6 +325,34 @@ class MarketDataManager {
     _pollTimer?.cancel();
   }
 
+  /// 获取清算数据
+  Future<void> _fetchLiquidations(String symbol) async {
+    for (final ex in AppConstants.exchanges) {
+      try {
+        final api = ExchangeFactory.get(ex);
+        final liquidations = await api.fetchLiquidations(symbol, 100).timeout(const Duration(seconds: 8));
+        if (liquidations.isNotEmpty) {
+          _liquidationCache[symbol] = liquidations;
+          return;
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// 获取订单簿深度数据
+  Future<void> _fetchOrderBook(String symbol) async {
+    for (final ex in AppConstants.exchanges) {
+      try {
+        final api = ExchangeFactory.get(ex);
+        final orderBook = await api.fetchOrderBookDepth(symbol, 20).timeout(const Duration(seconds: 8));
+        if (orderBook.bids.isNotEmpty && orderBook.asks.isNotEmpty) {
+          _orderBookCache[symbol] = orderBook;
+          return;
+        }
+      } catch (_) {}
+    }
+  }
+
   void dispose() {
     _isDisposed = true;
     stopPolling();

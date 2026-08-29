@@ -390,6 +390,23 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 后台运行回测和参数优化
+  Future<void> _runBacktestInBackground() async {
+    try {
+      await Future.delayed(const Duration(seconds: 10));
+      final klines = marketData.getEth1h();
+      if (klines.length >= 100) {
+        _backtestResult = BacktestEngine.runBacktest(
+          klines: klines,
+          params: mlOptimizer.currentParams,
+        );
+        _optimizedParams = mlOptimizer.optimize();
+        _statusMessage = '回测完成: \${_backtestResult!.summary}';
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     stop();

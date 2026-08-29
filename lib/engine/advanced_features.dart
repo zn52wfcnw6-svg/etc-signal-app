@@ -389,13 +389,13 @@ class BacktestEngine {
     // 计算统计数据
     final wins = trades.where((t) => t.isWin).toList();
     final losses = trades.where((t) => !t.isWin).toList();
-    final winRate = trades.isNotEmpty ? wins.length / trades.length * 100 : 0;
+    final winRate = trades.isNotEmpty ? wins.length / trades.length * 100 : 0.0;
     final totalWin = wins.fold(0.0, (sum, t) => sum + t.pnl);
     final totalLoss = losses.fold(0.0, (sum, t) => sum + t.pnl.abs());
-    final profitFactor = totalLoss > 0 ? totalWin / totalLoss : 0;
-    final totalReturn = (capital - initialCapital) / initialCapital * 100;
-    final avgWin = wins.isNotEmpty ? totalWin / wins.length : 0;
-    final avgLoss = losses.isNotEmpty ? totalLoss / losses.length : 0;
+    final profitFactor = totalLoss > 0 ? totalWin / totalLoss : 0.0;
+    final totalReturn = (capital - initialCapital) / initialCapital * 100.0;
+    final avgWin = wins.isNotEmpty ? totalWin / wins.length : 0.0;
+    final avgLoss = losses.isNotEmpty ? totalLoss / losses.length : 0.0;
 
     return BacktestResult(
       totalTrades: trades.length,
