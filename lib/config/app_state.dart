@@ -421,25 +421,51 @@ class AppState extends ChangeNotifier {
 
   /// 运行多维度信号决策
   void _runMultiDimensionDecision() {
+    final klines5m = marketData.getEth5m();
+    final klines1h = marketData.getEth1h();
+    final klines4h = marketData.getEth4h();
+    if (klines5m.length < 20) {
+      // K线不足，也设置一个默认的最终信号状态
+      _finalSignal = FinalSignalDecision(
+        hasSignal: false,
+        direction: 'none',
+        confidence: 0,
+        multiDimensionPassed: false,
+        originalSignalPassed: false,
+        multiScore: 0,
+        multiConfidence: 0,
+        originalConfidence: 0,
+        entryLower: 0,
+        entryUpper: 0,
+        stopLoss: 0,
+        tp1: 0,
+        tp2: 0,
+        positionAdvice: 'K线数据不足，等待加载',
+        status: 'K线数据不足（${klines5m.length}/20）',
+        failedFilters: ['K线数据不足'],
+        recommendation: '等待K线数据加载完成',
+      );
+      return;
+    }
+
+    double? support;
+    double? resistance;
     try {
-      final klines5m = marketData.getEth5m();
-      final klines1h = marketData.getEth1h();
-      final klines4h = marketData.getEth4h();
-      if (klines5m.length < 20) return;
-
       final longCycle = signalEngine?.longCycle.analyze();
-      final support = longCycle?.nearestSupport?.mid;
-      final resistance = longCycle?.nearestResistance?.mid;
+      support = longCycle?.nearestSupport?.mid;
+      resistance = longCycle?.nearestResistance?.mid;
+    } catch (_) {}
 
-      final orderFlowBars = marketData.orderFlow.getRecentBars(50);
-      double buyVolume = 0, sellVolume = 0;
-      for (final bar in orderFlowBars) {
-        buyVolume += bar.buyVolume;
-        sellVolume += bar.sellVolume;
-      }
+    final orderFlowBars = marketData.orderFlow.getRecentBars(50);
+    double buyVolume = 0, sellVolume = 0;
+    for (final bar in orderFlowBars) {
+      buyVolume += bar.buyVolume;
+      sellVolume += bar.sellVolume;
+    }
 
-      final multiDim = multiDimensionData;
+    final multiDim = multiDimensionData;
 
+    try {
       _multiDimensionDecision = MultiDimensionSignalEngine.analyze(
         klines5m: klines5m,
         klines1h: klines1h,
@@ -464,20 +490,59 @@ class AppState extends ChangeNotifier {
         openInterestChange: multiDim.openInterestChange,
         stablecoinMarketCapChange: multiDim.stablecoinMarketCapChange,
       );
+    } catch (e) {
+      // 多维度分析失败，设置一个错误状态
+      _finalSignal = FinalSignalDecision(
+        hasSignal: false,
+        direction: 'none',
+        confidence: 0,
+        multiDimensionPassed: false,
+        originalSignalPassed: false,
+        multiScore: 0,
+        multiConfidence: 0,
+        originalConfidence: 0,
+        entryLower: 0,
+        entryUpper: 0,
+        stopLoss: 0,
+        tp1: 0,
+        tp2: 0,
+        positionAdvice: '多维度分析异常，等待恢复',
+        status: '多维度分析异常: ${e.toString().substring(0, e.toString().length > 50 ? 50 : e.toString().length)}',
+        failedFilters: ['多维度分析异常'],
+        recommendation: '等待系统恢复',
+      );
+      return;
+    }
 
-      // 双引擎级联决策
-      _runFinalSignalDecision();
-    } catch (_) {}
+    // 双引擎级联决策（一定调用）
+    _runFinalSignalDecision();
   }
 
   /// 双引擎级联决策（多维度总闸门 → 原信号精确入场 → 最终结论）
   void _runFinalSignalDecision() {
-    try {
-      final multiDim = _multiDimensionDecision;
-      if (multiDim == null) {
-        _finalSignal = null;
-        return;
-      }
+    final multiDim = _multiDimensionDecision;
+    if (multiDim == null) {
+      _finalSignal = FinalSignalDecision(
+        hasSignal: false,
+        direction: 'none',
+        confidence: 0,
+        multiDimensionPassed: false,
+        originalSignalPassed: false,
+        multiScore: 0,
+        multiConfidence: 0,
+        originalConfidence: 0,
+        entryLower: 0,
+        entryUpper: 0,
+        stopLoss: 0,
+        tp1: 0,
+        tp2: 0,
+        positionAdvice: '多维度决策未初始化',
+        status: '多维度决策未初始化',
+        failedFilters: ['多维度决策未初始化'],
+        recommendation: '等待系统初始化',
+      );
+      return;
+    }
 
       // 第一级：多维度决策引擎（总闸门）
       final multiPassed = multiDim.hasSignal;
@@ -568,9 +633,6 @@ class AppState extends ChangeNotifier {
         failedFilters: multiDim.failedFilters,
         recommendation: multiDim.recommendation,
       );
-    } catch (_) {
-      _finalSignal = null;
-    }
   }
 
   @override
