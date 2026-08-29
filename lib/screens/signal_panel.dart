@@ -1871,4 +1871,188 @@ class SignalPanel extends StatelessWidget {
       case RiskLevel.L3: return Colors.red;
     }
   }
+
+  /// 双引擎决策状态（独立模块，醒目显示）
+  Widget _buildDualEngineStatus(AppState app) {
+    final finalSignal = app.finalSignal;
+    final multiDim = app.multiDimensionDecision;
+
+    Color statusColor;
+    String statusText;
+    if (finalSignal == null) {
+      statusColor = Colors.grey;
+      statusText = '未初始化';
+    } else if (finalSignal.hasSignal) {
+      statusColor = finalSignal.direction == 'long' ? Colors.green : Colors.red;
+      statusText = finalSignal.direction == 'long' ? '双引擎通过-做多' : '双引擎通过-做空';
+    } else if (finalSignal.multiDimensionPassed && !finalSignal.originalSignalPassed) {
+      statusColor = Colors.orange;
+      statusText = '仅多维度通过';
+    } else if (!finalSignal.multiDimensionPassed && finalSignal.originalSignalPassed) {
+      statusColor = Colors.orange;
+      statusText = '仅原信号通过';
+    } else {
+      statusColor = Colors.grey;
+      statusText = '双引擎未通过';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [statusColor.withOpacity(0.2), statusColor.withOpacity(0.05)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withOpacity(0.6), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome, color: statusColor, size: 18),
+              const SizedBox(width: 8),
+              Text('双引擎决策状态', style: TextStyle(color: statusColor, fontSize: 16, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(6)),
+                child: Text(statusText, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (finalSignal == null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.grey.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+              child: const Column(
+                children: [
+                  Icon(Icons.hourglass_empty, color: Colors.grey, size: 32),
+                  SizedBox(height: 8),
+                  Text('双引擎决策正在初始化...', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  SizedBox(height: 4),
+                  Text('请等待K线数据加载完成（约10-30秒）', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                ],
+              ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(child: _engineCard(title: '多维度引擎', subtitle: '5大维度综合', passed: finalSignal.multiDimensionPassed, score: finalSignal.multiScore)),
+                const SizedBox(width: 10),
+                Expanded(child: _engineCard(title: '原信号引擎', subtitle: '6道闸门精确入场', passed: finalSignal.originalSignalPassed, score: finalSignal.originalConfidence)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: statusColor.withOpacity(0.3))),
+              child: Row(
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('最终自信度', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const SizedBox(height: 4),
+                      Text('${finalSignal.confidence.toStringAsFixed(0)}%', style: TextStyle(color: statusColor, fontSize: 28, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const Spacer(),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('自信等级', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      const SizedBox(height: 4),
+                      Text(finalSignal.confidenceLevel, style: TextStyle(color: statusColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (finalSignal.status.isNotEmpty)
+              Row(
+                children: [
+                  Icon(Icons.info_outline, color: statusColor, size: 14),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(finalSignal.status, style: TextStyle(color: statusColor, fontSize: 12))),
+                ],
+              ),
+            if (finalSignal.status.isNotEmpty) const SizedBox(height: 8),
+            if (finalSignal.failedFilters.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.withOpacity(0.3))),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('⚠️ 未通过的过滤条件:', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    ...finalSignal.failedFilters.map((f) => Padding(padding: const EdgeInsets.only(bottom: 2), child: Text('• $f', style: const TextStyle(color: Colors.red, fontSize: 10)))).toList(),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              children: [
+                Icon(Icons.account_balance_wallet, color: Colors.purpleAccent, size: 14),
+                const SizedBox(width: 6),
+                Expanded(child: Text(finalSignal.positionAdvice, style: const TextStyle(color: Colors.purpleAccent, fontSize: 12))),
+              ],
+            ),
+          ],
+          if (multiDim != null) ...[
+            const SizedBox(height: 12),
+            const Divider(color: Colors.grey, height: 1),
+            const SizedBox(height: 10),
+            const Text('5大维度详情:', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            ...multiDim.dimensions.map((dim) {
+              final dimColor = dim.bias == 'long' ? Colors.green : dim.bias == 'short' ? Colors.red : Colors.grey;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    SizedBox(width: 55, child: Text(dim.name, style: const TextStyle(color: Colors.grey, fontSize: 10))),
+                    Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(2), child: LinearProgressIndicator(value: dim.score / 100, minHeight: 5, backgroundColor: Colors.grey.withOpacity(0.2), valueColor: AlwaysStoppedAnimation<Color>(dimColor)))),
+                    const SizedBox(width: 6),
+                    SizedBox(width: 25, child: Text('${dim.score.toStringAsFixed(0)}', style: TextStyle(color: dimColor, fontSize: 10, fontWeight: FontWeight.bold))),
+                    SizedBox(width: 20, child: Text(dim.bias == 'long' ? '多' : dim.bias == 'short' ? '空' : '中', style: TextStyle(color: dimColor, fontSize: 10))),
+                    if (!dim.filterPassed) const Icon(Icons.block, color: Colors.red, size: 10),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _engineCard({required String title, required String subtitle, required bool passed, required double score}) {
+    final color = passed ? Colors.green : Colors.grey;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withOpacity(0.4))),
+      child: Column(
+        children: [
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(passed ? Icons.check_circle : Icons.cancel, color: color, size: 14), const SizedBox(width: 4), Text(title, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold))]),
+          const SizedBox(height: 4),
+          Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 9)),
+          const SizedBox(height: 8),
+          Text('${score.toStringAsFixed(0)}分', style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(passed ? '通过' : '未通过', style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
 }
