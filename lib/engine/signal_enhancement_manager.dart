@@ -269,9 +269,9 @@ class SignalEnhancementManager {
   }) {
     final riskAmount = accountBalance * (riskPercent / 100);
     final riskDistance = (entryPrice - sl).abs();
-    final positionSize = riskDistance > 0 ? riskAmount / riskDistance : 0;
-    final rr1 = riskDistance > 0 ? (tp1 - entryPrice).abs() / riskDistance : 0;
-    final rr2 = riskDistance > 0 ? (tp2 - entryPrice).abs() / riskDistance : 0;
+    final positionSize = riskDistance > 0 ? (riskAmount / riskDistance).toDouble() : 0.0;
+    final rr1 = riskDistance > 0 ? ((tp1 - entryPrice).abs() / riskDistance).toDouble() : 0.0;
+    final rr2 = riskDistance > 0 ? ((tp2 - entryPrice).abs() / riskDistance).toDouble() : 0.0;
 
     return RiskCalculation(
       accountBalance: accountBalance,
@@ -284,9 +284,9 @@ class SignalEnhancementManager {
       tp2: tp2,
       rr1: rr1,
       rr2: rr2,
-      batch1Size: positionSize * 0.4,
-      batch2Size: positionSize * 0.3,
-      batch3Size: positionSize * 0.3,
+      batch1Size: (positionSize * 0.4).toDouble(),
+      batch2Size: (positionSize * 0.3).toDouble(),
+      batch3Size: (positionSize * 0.3).toDouble(),
     );
   }
 
