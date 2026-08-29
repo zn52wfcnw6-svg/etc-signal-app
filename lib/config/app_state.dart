@@ -20,6 +20,7 @@ import '../engine/signal_lifecycle_manager.dart';
 import '../engine/system_closed_loop_manager.dart';
 import '../engine/advanced_features.dart';
 import '../engine/multi_dimension_signal_engine.dart';
+import '../models/final_signal_decision.dart';
 import '../storage/database_helper.dart';
 import '../models/signal.dart';
 import '../models/position.dart';
@@ -45,6 +46,10 @@ class AppState extends ChangeNotifier {
   Map<String, double>? get optimizedParams => _optimizedParams;
   SignalDecision? _multiDimensionDecision;
   SignalDecision? get multiDimensionDecision => _multiDimensionDecision;
+
+  /// 最终信号决策（双引擎级联）
+  FinalSignalDecision? _finalSignal;
+  FinalSignalDecision? get finalSignal => _finalSignal;
   SSSResult? _sssResult;
   SSSResult? get sssResult => _sssResult;
   final DatabaseHelper database = DatabaseHelper();
@@ -459,7 +464,113 @@ class AppState extends ChangeNotifier {
         openInterestChange: multiDim.openInterestChange,
         stablecoinMarketCapChange: multiDim.stablecoinMarketCapChange,
       );
+
+      // 双引擎级联决策
+      _runFinalSignalDecision();
     } catch (_) {}
+  }
+
+  /// 双引擎级联决策（多维度总闸门 → 原信号精确入场 → 最终结论）
+  void _runFinalSignalDecision() {
+    try {
+      final multiDim = _multiDimensionDecision;
+      if (multiDim == null) {
+        _finalSignal = null;
+        return;
+      }
+
+      // 第一级：多维度决策引擎（总闸门）
+      final multiPassed = multiDim.hasSignal;
+      final multiScore = multiDim.finalScore;
+      final multiConfidence = multiDim.confidence;
+      final direction = multiDim.direction;
+
+      // 第二级：原信号引擎（精确入场）
+      final originalSignal = signalEngine?.currentSignal;
+      final originalPassed = originalSignal != null && originalSignal.isValid;
+      final originalConfidence = originalSignal?.confidence ?? 0;
+
+      // 计算最终自信度（双引擎综合）
+      double finalConfidence;
+      if (multiPassed && originalPassed) {
+        finalConfidence = (multiConfidence * 0.5 + originalConfidence * 0.5);
+      } else if (multiPassed) {
+        finalConfidence = multiConfidence * 0.6;
+      } else if (originalPassed) {
+        finalConfidence = originalConfidence * 0.4;
+      } else {
+        finalConfidence = 0;
+      }
+
+      // 判断最终是否有信号
+      final hasFinalSignal = multiPassed && originalPassed && finalConfidence >= 60;
+
+      // 计算点位（优先用原信号引擎的精确点位）
+      double entryLower = 0, entryUpper = 0, stopLoss = 0, tp1 = 0, tp2 = 0;
+      if (originalSignal != null) {
+        entryLower = originalSignal.entryLower;
+        entryUpper = originalSignal.entryUpper;
+        stopLoss = originalSignal.stopLoss;
+        tp1 = originalSignal.tp1;
+        tp2 = originalSignal.tp2;
+      } else if (multiDim.hasSignal) {
+        entryLower = multiDim.entryLower;
+        entryUpper = multiDim.entryUpper;
+        stopLoss = multiDim.stopLoss;
+        tp1 = multiDim.tp1;
+        tp2 = multiDim.tp2;
+      }
+
+      // 计算仓位建议（根据自信度动态调整）
+      String positionAdvice;
+      if (finalConfidence >= 85) {
+        positionAdvice = '高自信，建议标准仓位1%';
+      } else if (finalConfidence >= 75) {
+        positionAdvice = '中高自信，建议0.7%仓位';
+      } else if (finalConfidence >= 65) {
+        positionAdvice = '中等自信，建议0.5%仓位';
+      } else if (finalConfidence >= 50) {
+        positionAdvice = '低自信，建议观望或0.3%轻仓';
+      } else {
+        positionAdvice = '无信号，观望';
+      }
+
+      // 状态描述
+      String status;
+      if (hasFinalSignal) {
+        status = direction == 'long' ? '强烈做多' : '强烈做空';
+      } else if (multiPassed && !originalPassed) {
+        status = '大方向确认，等待精确入场';
+      } else if (!multiPassed && originalPassed) {
+        status = '入场信号出现，但大方向不支持';
+      } else if (multiScore >= 60) {
+        status = '接近信号阈值，密切关注';
+      } else {
+        status = '无有效信号，观望';
+      }
+
+      _finalSignal = FinalSignalDecision(
+        hasSignal: hasFinalSignal,
+        direction: hasFinalSignal ? direction : 'none',
+        confidence: finalConfidence,
+        multiDimensionPassed: multiPassed,
+        originalSignalPassed: originalPassed,
+        multiScore: multiScore,
+        multiConfidence: multiConfidence,
+        originalConfidence: originalConfidence,
+        entryLower: entryLower,
+        entryUpper: entryUpper,
+        stopLoss: stopLoss,
+        tp1: tp1,
+        tp2: tp2,
+        positionAdvice: positionAdvice,
+        status: status,
+        failedFilters: multiDim.failedFilters,
+        recommendation: multiDim.recommendation,
+      );
+    } catch (_) {
+      _finalSignal = null;
+    }
   }
 
   @override

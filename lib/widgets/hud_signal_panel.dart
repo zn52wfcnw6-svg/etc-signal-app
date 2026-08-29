@@ -1642,6 +1642,257 @@ class _HudPredictionRadarState extends State<_HudPredictionRadar> {
     return '${(minutes / 60).toStringAsFixed(1)}时';
   }
 
+  /// 最终结论（双引擎级联，最顶部）
+  Widget _buildFinalSignal(AppState app) {
+    final signal = app.finalSignal!;
+    final color = signal.hasSignal
+        ? (signal.direction == 'long' ? Colors.green : Colors.red)
+        : Colors.grey;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.7), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 标题行
+          Row(
+            children: [
+              Icon(
+                signal.hasSignal ? Icons.flash_on : Icons.pause_circle,
+                color: color,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '最终结论',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  signal.hasSignal
+                      ? (signal.direction == 'long' ? '做多' : '做空')
+                      : '观望',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 自信度大数字
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                signal.confidence.toStringAsFixed(0),
+                style: TextStyle(
+                  color: color,
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'monospace',
+                  height: 0.8,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '%
+${signal.confidenceLevel}自信',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // 双引擎状态
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    signal.engineStatus,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '多维度: ${signal.multiScore.toStringAsFixed(0)}分',
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  Text(
+                    '原信号: ${signal.originalConfidence.toStringAsFixed(0)}分',
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // 状态描述
+          Text(
+            signal.status,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // 点位（只有有信号时显示）
+          if (signal.hasSignal && signal.entryUpper > 0)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Column(
+                children: [
+                  _buildPointRow('入场区间', '${signal.entryLower.toStringAsFixed(1)} - ${signal.entryUpper.toStringAsFixed(1)}', Colors.blue),
+                  const SizedBox(height: 6),
+                  _buildPointRow('止损', signal.stopLoss.toStringAsFixed(1), Colors.red),
+                  const SizedBox(height: 6),
+                  _buildPointRow('止盈1 (60%)', signal.tp1.toStringAsFixed(1), Colors.green),
+                  const SizedBox(height: 6),
+                  _buildPointRow('止盈2 (全平)', signal.tp2.toStringAsFixed(1), Colors.green),
+                  const SizedBox(height: 6),
+                  _buildPointRow('盈亏比', '${signal.riskRewardRatio.toStringAsFixed(1)}:1', Colors.orange),
+                ],
+              ),
+            ),
+          if (signal.hasSignal && signal.entryUpper > 0)
+            const SizedBox(height: 8),
+
+          // 仓位建议
+          Row(
+            children: [
+              const Icon(Icons.account_balance_wallet, color: Colors.grey, size: 14),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  signal.positionAdvice,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // 未通过的过滤条件
+          if (signal.failedFilters.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '⚠️ 过滤条件未通过:',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ...signal.failedFilters.map((f) => Text(
+                      '• $f',
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                      ),
+                    )).toList(),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPointRow(String label, String value, Color color) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 11,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
+      ],
+    );
+  }
+
   /// 多维度决策摘要
   Widget _buildMultiDimensionSummary(AppState app) {
     final decision = app.multiDimensionDecision!;
