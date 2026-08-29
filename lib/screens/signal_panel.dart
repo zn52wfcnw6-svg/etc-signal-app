@@ -87,43 +87,76 @@ class SignalPanel extends StatelessWidget {
     final regime = app.marketRegime;
     final mtf = app.mtfResult;
 
-    return Card(
-      elevation: 2,
-      color: color.withOpacity(0.15),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: color, width: 1.5),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.6), width: 1),
+        boxShadow: [
+          BoxShadow(color: color.withOpacity(0.15), blurRadius: 12, spreadRadius: 1),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.shield, color: color, size: 20),
-                const SizedBox(width: 8),
-                Text('风险等级: ${riskLevel.name}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 顶部栏
+          Row(
+            children: [
+              Container(
+                width: 10, height: 10,
+                decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2),
+                  boxShadow: [BoxShadow(color: color.withOpacity(0.8), blurRadius: 6)]),
+              ),
+              const SizedBox(width: 8),
+              Text('风险等级 ${riskLevel.name}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color, fontFamily: 'monospace', letterSpacing: 1)),
+              const Spacer(),
+              // 呼吸灯
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.3, end: 1.0),
+                duration: const Duration(milliseconds: 1200),
+                builder: (context, value, child) => Container(
+                  width: 8, height: 8,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: color,
+                    boxShadow: [BoxShadow(color: color.withOpacity(value), blurRadius: 6 * value)]),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(app.riskState?.reasonText ?? '正常', style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'monospace')),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // 分隔线
+          Container(height: 1, color: color.withOpacity(0.2)),
+          const SizedBox(height: 10),
+          // 数据行
+          if (regime != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(children: [
+                const Text('市场状态', style: TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'monospace')),
                 const Spacer(),
-                Text(app.riskState?.reasonText ?? '正常', style: const TextStyle(fontSize: 12, color: Colors.white70)),
-              ],
+                Text(regime.description, style: const TextStyle(fontSize: 12, color: Colors.cyan, fontFamily: 'monospace', fontWeight: FontWeight.w500)),
+              ]),
             ),
-            const SizedBox(height: 8),
-            if (regime != null)
-              Text('市场状态: ${regime.description}', style: const TextStyle(fontSize: 13, color: Colors.white70)),
-            if (mtf != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text('多周期: ${mtf.description}', style: const TextStyle(fontSize: 13, color: Colors.white70)),
-              ),
-            if (app.adaptiveParams != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text('波动率: ${app.adaptiveParams!.volatilityLabel} | 确认次数: ${app.adaptiveParams!.confirmationCount} | 最低盈亏比: ${app.adaptiveParams!.minRiskReward.toStringAsFixed(1)}:1',
-                    style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
-              ),
-          ],
-        ),
+          if (mtf != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(children: [
+                const Text('多周期', style: TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'monospace')),
+                const Spacer(),
+                Text(mtf.description, style: const TextStyle(fontSize: 12, color: Colors.purple, fontFamily: 'monospace', fontWeight: FontWeight.w500)),
+              ]),
+            ),
+          if (app.adaptiveParams != null)
+            Row(children: [
+              const Text('参数', style: TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'monospace')),
+              const Spacer(),
+              Text('${app.adaptiveParams!.volatilityLabel} | ${app.adaptiveParams!.confirmationCount}次确认 | ${app.adaptiveParams!.minRiskReward.toStringAsFixed(1)}:1',
+                style: const TextStyle(fontSize: 11, color: Colors.orange, fontFamily: 'monospace')),
+            ]),
+        ],
       ),
     );
   }
@@ -170,41 +203,87 @@ class SignalPanel extends StatelessWidget {
       }
     }
 
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: outlookColor.withOpacity(0.5), width: 1.5),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: outlookColor.withOpacity(0.5), width: 1),
+        boxShadow: [
+          BoxShadow(color: outlookColor.withOpacity(0.15), blurRadius: 12, spreadRadius: 1),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.analytics, color: outlookColor, size: 24),
-                const SizedBox(width: 8),
-                const Text('行情预判', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: outlookColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 顶部栏
+          Row(
+            children: [
+              Icon(Icons.radar, color: outlookColor, size: 18),
+              const SizedBox(width: 8),
+              const Text('行情预判 SCAN', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.cyan, fontFamily: 'monospace', letterSpacing: 1)),
+              const Spacer(),
+              // 扫描动画
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(seconds: 2),
+                builder: (context, value, child) => Container(
+                  width: 40, height: 3,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [outlookColor.withOpacity(0), outlookColor, outlookColor.withOpacity(0)],
+                      stops: [0.0, value, 1.0],
+                    ),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
-              child: Text(outlook, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: outlookColor)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 预判结果
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: outlookColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: outlookColor.withOpacity(0.4)),
             ),
-            const SizedBox(height: 12),
-            Text(suggestion, style: const TextStyle(fontSize: 14, height: 1.5, color: Colors.white70)),
-            const SizedBox(height: 8),
-            if (currentPrice > 0)
-              Text('当前价: \$${currentPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, color: Colors.blue)),
-          ],
-        ),
+            child: Text(outlook, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: outlookColor, fontFamily: 'monospace')),
+          ),
+          const SizedBox(height: 12),
+          // 建议
+          Text(suggestion, style: const TextStyle(fontSize: 13, height: 1.6, color: Colors.grey, fontFamily: 'monospace')),
+          const SizedBox(height: 12),
+          // 分隔线
+          Container(height: 1, color: Colors.grey.withOpacity(0.2)),
+          const SizedBox(height: 10),
+          // 底部数据
+          Row(
+            children: [
+              const Text('当前价格', style: TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'monospace')),
+              const Spacer(),
+              Text(
+                currentPrice > 0 ? '\$${currentPrice.toStringAsFixed(2)}' : '获取中...',
+                style: TextStyle(fontSize: 14, color: currentPrice > 0 ? Colors.cyan : Colors.grey, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Text('扫描状态', style: TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'monospace')),
+              const Spacer(),
+              Row(children: [
+                Container(width: 6, height: 6, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
+                const SizedBox(width: 4),
+                const Text('实时扫描中', style: TextStyle(fontSize: 11, color: Colors.green, fontFamily: 'monospace')),
+              ]),
+            ],
+          ),
+        ],
       ),
     );
   }
