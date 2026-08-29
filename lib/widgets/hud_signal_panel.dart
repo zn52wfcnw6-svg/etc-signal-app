@@ -1641,4 +1641,173 @@ class _HudPredictionRadarState extends State<_HudPredictionRadar> {
     if (minutes < 60) return '${minutes.toStringAsFixed(0)}分';
     return '${(minutes / 60).toStringAsFixed(1)}时';
   }
+
+  /// 多维度决策摘要
+  Widget _buildMultiDimensionSummary(AppState app) {
+    final decision = app.multiDimensionDecision!;
+    final color = decision.hasSignal
+        ? (decision.direction == 'long' ? Colors.green : Colors.red)
+        : Colors.grey;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.analytics, color: color, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                '多维度决策引擎',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const Spacer(),
+              Text(
+                decision.hasSignal ? '有信号' : '无信号',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // 各维度评分条
+          ...decision.dimensions.map((dim) {
+            final dimColor = dim.bias == 'long'
+                ? Colors.green
+                : dim.bias == 'short'
+                    ? Colors.red
+                    : Colors.grey;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 50,
+                    child: Text(
+                      dim.name,
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: dim.score / 100,
+                        minHeight: 6,
+                        backgroundColor: Colors.grey.withOpacity(0.2),
+                        valueColor: AlwaysStoppedAnimation<Color>(dimColor),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 30,
+                    child: Text(
+                      '${dim.score.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        color: dimColor,
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 30,
+                    child: Text(
+                      dim.bias == 'long' ? '多' : dim.bias == 'short' ? '空' : '中',
+                      style: TextStyle(
+                        color: dimColor,
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                  if (!dim.filterPassed)
+                    const Icon(Icons.block, color: Colors.red, size: 12),
+                ],
+              ),
+            );
+          }).toList(),
+          const SizedBox(height: 6),
+          // 综合评分和可信度
+          Row(
+            children: [
+              Text(
+                '综合: ${decision.finalScore.toStringAsFixed(0)}分',
+                style: TextStyle(
+                  color: decision.finalScore >= 70 ? Colors.green : Colors.orange,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '可信: ${decision.confidence.toStringAsFixed(0)}%',
+                style: TextStyle(
+                  color: decision.confidence >= 60 ? Colors.green : Colors.orange,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              if (decision.failedFilters.isNotEmpty)
+                Text(
+                  '过滤: ${decision.failedFilters.length}项',
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+            ],
+          ),
+          if (decision.failedFilters.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                decision.failedFilters.join(', '),
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 9,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          const SizedBox(height: 6),
+          Text(
+            decision.recommendation,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
