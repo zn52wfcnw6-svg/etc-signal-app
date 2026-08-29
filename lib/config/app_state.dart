@@ -16,6 +16,8 @@ import '../data/multi_dimension_data_manager.dart';
 import '../engine/sss/sss_analyzer.dart';
 import '../engine/signal_history_tracker.dart';
 import '../engine/signal_enhancement_manager.dart';
+import '../engine/signal_lifecycle_manager.dart';
+import '../engine/system_closed_loop_manager.dart';
 import '../storage/database_helper.dart';
 import '../models/signal.dart';
 import '../models/position.dart';
@@ -31,6 +33,9 @@ class AppState extends ChangeNotifier {
   final MultiDimensionDataManager multiDimensionData = MultiDimensionDataManager();
   final SignalHistoryTracker signalHistory = SignalHistoryTracker();
   final SignalEnhancementManager enhancement = SignalEnhancementManager();
+  final SignalLifecycleManager lifecycle = SignalLifecycleManager();
+  final AccountRiskManager accountRisk = AccountRiskManager();
+  final AlertNotificationManager alerts = AlertNotificationManager();
   SSSResult? _sssResult;
   SSSResult? get sssResult => _sssResult;
   final DatabaseHelper database = DatabaseHelper();
@@ -162,6 +167,12 @@ class AppState extends ChangeNotifier {
 
       _ethSub = marketData.ethDataStream.listen((data) {
         _ethPrice = data.price;
+        // 更新信号生命周期状态
+        try {
+          lifecycle.updateSignals(currentPrice: data.price, currentTime: DateTime.now());
+          // 更新账户风险持仓浮动盈亏
+          accountRisk.updatePositions(data.price);
+        } catch (_) {}
         notifyListeners();
       });
       _btcSub = marketData.btcDataStream.listen((data) {

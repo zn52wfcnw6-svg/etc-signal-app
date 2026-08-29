@@ -358,6 +358,15 @@ class SignalPanel extends StatelessWidget {
               // 时间因素
               _buildTimeFactor(app),
               const SizedBox(height: 12),
+              // 信号生命周期状态
+              _buildSignalLifecycleStatus(app),
+              const SizedBox(height: 12),
+              // 信号历史统计
+              _buildSignalHistoryStats(app),
+              const SizedBox(height: 12),
+              // 账户风险状态
+              _buildAccountRiskStatus(app),
+              const SizedBox(height: 12),
               // 最终总结（所有模块服务于此）
               _buildFinalSummary(app),
             ] else ...[
@@ -1246,6 +1255,158 @@ class SignalPanel extends StatelessWidget {
           _recRow('交易时段', timeFactor.session, timeFactor.isHighVolatility ? Colors.red : Colors.blue),
           const SizedBox(height: 6),
           _recRow('波动预期', timeFactor.isHighVolatility ? '高波动（谨慎）' : '正常波动', timeFactor.isHighVolatility ? Colors.red : Colors.green),
+        ],
+      ),
+    );
+  }
+
+  /// 信号生命周期状态
+  Widget _buildSignalLifecycleStatus(AppState app) {
+    final signal = app.lifecycle.currentActiveSignal;
+    final stats = app.lifecycle.getHistoryStats();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.indigo.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.indigo.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.autorenew, color: Colors.indigo, size: 14),
+              SizedBox(width: 4),
+              Text('信号生命周期', style: TextStyle(fontSize: 12, color: Colors.indigo, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (signal != null) ...[
+            _recRow('信号ID', signal.id, Colors.grey),
+            const SizedBox(height: 4),
+            _recRow('当前状态', signal.stateText, _getStateColor(signal.state)),
+            const SizedBox(height: 4),
+            _recRow('生成时间', signal.generatedAt.toString().substring(11, 19), Colors.grey),
+            const SizedBox(height: 4),
+            if (signal.confirmedAt != null)
+              _recRow('确认时间', signal.confirmedAt.toString().substring(11, 19), Colors.blue),
+            if (signal.confirmedAt != null) const SizedBox(height: 4),
+            _recRow('触达次数', '${signal.triggerCount}次', signal.triggerCount > 0 ? Colors.green : Colors.grey),
+            const SizedBox(height: 4),
+            _recRow('累计停留', '${signal.totalTriggerDuration.inMinutes}分${signal.totalTriggerDuration.inSeconds % 60}秒', Colors.cyan),
+            const SizedBox(height: 4),
+            _recRow('持续时间', '${signal.duration.inMinutes}分${signal.duration.inSeconds % 60}秒', Colors.orange),
+            const SizedBox(height: 4),
+            _recRow('SSS评分', '${signal.sssScore.toStringAsFixed(0)}分', signal.sssScore >= 80 ? Colors.green : signal.sssScore >= 60 ? Colors.orange : Colors.red),
+          ] else ...[
+            const Text('当前无活跃信号', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 4),
+            _recRow('历史信号数', '${stats.totalSignals}个', Colors.grey),
+            const SizedBox(height: 4),
+            _recRow('历史胜率', stats.winRateText, stats.winRate >= 60 ? Colors.green : Colors.red),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _getStateColor(SignalLifecycleState state) {
+    switch (state) {
+      case SignalLifecycleState.newlyGenerated:
+        return Colors.grey;
+      case SignalLifecycleState.candidate:
+        return Colors.blue;
+      case SignalLifecycleState.confirmed:
+        return Colors.orange;
+      case SignalLifecycleState.triggered:
+        return Colors.green;
+      case SignalLifecycleState.closed:
+        return Colors.teal;
+      case SignalLifecycleState.expired:
+        return Colors.red;
+    }
+  }
+
+  /// 信号历史统计
+  Widget _buildSignalHistoryStats(AppState app) {
+    final stats = app.lifecycle.getHistoryStats();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.teal.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.teal.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.bar_chart, color: Colors.teal, size: 14),
+              SizedBox(width: 4),
+              Text('信号历史统计', style: TextStyle(fontSize: 12, color: Colors.teal, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _recRow('总信号数', '${stats.totalSignals}个', Colors.white),
+          const SizedBox(height: 4),
+          _recRow('历史胜率', stats.winRateText, stats.winRate >= 60 ? Colors.green : Colors.red),
+          const SizedBox(height: 4),
+          _recRow('平均盈亏', stats.avgPnlText, stats.avgPnl >= 0 ? Colors.green : Colors.red),
+          const SizedBox(height: 4),
+          _recRow('最大回撤', '${stats.maxDrawdown.toStringAsFixed(2)}%', stats.maxDrawdown > 5 ? Colors.red : Colors.orange),
+          const SizedBox(height: 4),
+          _recRow('当前连盈亏', stats.currentStreakText, stats.currentStreak >= 0 ? Colors.green : Colors.red),
+          const SizedBox(height: 4),
+          _recRow('最大连盈', '${stats.maxWinStreak}次', Colors.green),
+          const SizedBox(height: 4),
+          _recRow('最大连亏', '${stats.maxLossStreak}次', Colors.red),
+        ],
+      ),
+    );
+  }
+
+  /// 账户风险状态
+  Widget _buildAccountRiskStatus(AppState app) {
+    final risk = app.accountRisk;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.deepOrange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.deepOrange.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.shield_outlined, color: Colors.deepOrange, size: 14),
+              SizedBox(width: 4),
+              Text('账户风险状态', style: TextStyle(fontSize: 12, color: Colors.deepOrange, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _recRow('账户余额', '\$${risk.accountBalance.toStringAsFixed(2)}', Colors.white),
+          const SizedBox(height: 4),
+          _recRow('单笔风险', '${risk.singleRiskPercent.toStringAsFixed(1)}% (\$${risk.singleRiskAmount.toStringAsFixed(2)})', Colors.blue),
+          const SizedBox(height: 4),
+          _recRow('总风险上限', '${risk.totalRiskPercent.toStringAsFixed(1)}% (\$${risk.totalRiskAmount.toStringAsFixed(2)})', Colors.orange),
+          const SizedBox(height: 4),
+          _recRow('当前风险占用', '${risk.currentTotalRisk.toStringAsFixed(1)}%', risk.currentTotalRisk > risk.totalRiskPercent * 0.8 ? Colors.red : risk.currentTotalRisk > 0 ? Colors.orange : Colors.green),
+          const SizedBox(height: 4),
+          _recRow('风险状态', risk.riskStatusText, risk.currentTotalRisk > risk.totalRiskPercent * 0.8 ? Colors.red : Colors.green),
+          const SizedBox(height: 4),
+          _recRow('连续亏损', risk.consecutiveLossProtectionText, risk.consecutiveLosses >= 3 ? Colors.red : risk.consecutiveLosses > 0 ? Colors.orange : Colors.green),
+          const SizedBox(height: 4),
+          _recRow('当前持仓', '${risk.openPositions.length}个', risk.openPositions.length >= risk.maxConcurrentPositions ? Colors.red : Colors.blue),
         ],
       ),
     );
